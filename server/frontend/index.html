@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>会议准备自动化工作台</title>
+<script src="./vue.global.prod.js"></script>
+<style>
+:root {
+  --bg:#0a0e1a; --panel:#111827; --panel2:#1a2438;
+  --gold:#38bdf8; --gold2:#4dd0e1; --gold3:#92b8e0;
+  --ink:#c9d2dd; --muted:#8fa3b8; --red:#e25c6a; --line:#24344d;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--ink); font-family:"Microsoft YaHei UI",sans-serif; overflow-x:hidden; }
+
+/* ── 粒子背景层 ── */
+#particles { position:fixed; inset:0; z-index:0; pointer-events:none; }
+
+/* ── 顶部流光 ── */
+.shine { position:fixed; top:0; left:-30%; width:30%; height:2px; z-index:3; pointer-events:none;
+         background:linear-gradient(90deg,transparent,var(--gold2),transparent);
+         animation:shine 3.5s ease-in-out infinite; }
+@keyframes shine { to { left:130%; } }
+
+/* ── 构成主义几何 ── */
+.geo { position:fixed; pointer-events:none; z-index:0; }
+.geo .circle { position:absolute; width:420px; height:420px; border:2px solid rgba(56,189,248,.08); border-radius:50%; left:-140px; top:-160px; animation:spin 70s linear infinite; }
+.geo .circle2 { width:300px; height:300px; border:1px solid rgba(56,189,248,.06); right:-90px; top:20%; animation:spin 90s linear infinite reverse; }
+.geo .tri { width:0; height:0; border-left:120px solid transparent; border-right:120px solid transparent; border-bottom:200px solid rgba(226,92,106,.06); right:8%; top:-80px; transform:rotate(18deg); }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ── 顶栏 ── */
+header { position:relative; z-index:2; display:flex; align-items:center; gap:14px; padding:18px 28px;
+         border-bottom:1px solid var(--line); background:rgba(17,24,39,.6); backdrop-filter:blur(10px);
+         animation:fadeDown .7s cubic-bezier(.34,1.56,.64,1); }
+header .mark { display:flex; align-items:center; gap:8px; }
+header .mark i { display:block; width:0; height:0; border-left:9px solid transparent; border-right:9px solid transparent; border-bottom:16px solid var(--gold); animation:hop 2s ease infinite; }
+header .mark b { width:14px; height:14px; border:2px solid var(--red); border-radius:50%; animation:glow 2s ease infinite; }
+@keyframes hop { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-4px);} }
+@keyframes glow { 0%,100%{box-shadow:0 0 4px var(--red);} 50%{box-shadow:0 0 16px var(--red);} }
+header h1 { font-size:20px; font-weight:900; letter-spacing:3px; }
+header h1 em { color:var(--gold); font-style:normal; }
+header .sub { margin-left:auto; color:var(--muted); font-size:12px; letter-spacing:2px; }
+
+@keyframes fadeDown { from{opacity:0; transform:translateY(-18px);} to{opacity:1; transform:none;} }
+@keyframes riseElastic { from{opacity:0; transform:translateY(28px) scale(.98);} to{opacity:1; transform:none;} }
+
+main { position:relative; z-index:1; display:grid; grid-template-columns:1fr 1fr; gap:18px; padding:22px 28px; max-width:1440px; margin:0 auto; }
+@media(max-width:1100px){ main{ grid-template-columns:1fr; } }
+
+.card { position:relative; background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--gold2);
+        padding:18px; margin-bottom:18px; animation:riseElastic .8s cubic-bezier(.34,1.56,.64,1) backwards;
+        box-shadow:0 10px 40px rgba(0,0,0,.4); transition:transform .3s cubic-bezier(.34,1.56,.64,1), border-color .3s, box-shadow .3s; }
+.card:hover { transform:translateY(-5px); border-color:rgba(56,189,248,.5); box-shadow:0 18px 60px rgba(56,189,248,.12); }
+.card::after { content:""; position:absolute; top:0; right:0; width:0; height:0; border-top:22px solid rgba(56,189,248,.15); border-left:22px solid transparent; }
+.card h2 { font-size:14px; margin-bottom:14px; color:var(--gold3); font-weight:900; letter-spacing:2px; display:flex; align-items:center; gap:8px; }
+.card h2::before { content:"▸"; color:var(--red); animation:blink 1.5s ease infinite; }
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+.card h3 { font-size:13px; margin:16px 0 8px; color:var(--gold); font-weight:900; letter-spacing:1px; }
+
+button { position:relative; overflow:hidden; background:linear-gradient(135deg,var(--gold2),var(--gold));
+         color:#06121f; border:0; padding:9px 18px; font-weight:900; letter-spacing:1px; cursor:pointer; margin:4px 4px 0 0;
+         transition:box-shadow .25s ease, transform .2s cubic-bezier(.34,1.56,.64,1); }
+button:hover { box-shadow:0 0 26px rgba(56,189,248,.5); transform:translateY(-2px) scale(1.02); }
+button:active { transform:scale(.95); }
+button.ghost { background:transparent; border:1px solid var(--gold2); color:var(--gold3); }
+.ripple { position:absolute; width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,.6); transform:translate(-50%,-50%) scale(0); animation:ripple .6s ease-out forwards; pointer-events:none; }
+@keyframes ripple { to { transform:translate(-50%,-50%) scale(20); opacity:0; } }
+
+input,textarea { width:100%; background:var(--panel2); color:var(--ink); border:1px solid var(--line); padding:9px; margin:4px 0; transition:border-color .25s, box-shadow .25s, transform .2s; }
+input:focus,textarea:focus { outline:none; border-color:var(--gold2); box-shadow:0 0 14px rgba(56,189,248,.2); transform:translateY(-1px); }
+
+ul { list-style:none; }
+li { padding:9px 6px; border-bottom:1px solid var(--line); position:relative; transition:background .25s, padding-left .25s; }
+li:hover { background:rgba(56,189,248,.08); padding-left:14px; }
+li:hover::before { content:""; position:absolute; left:0; top:0; height:100%; width:2px; background:var(--gold2); animation:growDown .25s ease; }
+@keyframes growDown { from{height:0;} to{height:100%;} }
+li:last-child { border-bottom:0; }
+
+.status { font-weight:900; font-size:12px; position:relative; }
+.st-done { color:#7fb58a; }
+.st-running { color:var(--gold); animation:pulse 1.1s ease infinite; text-shadow:0 0 12px rgba(56,189,248,.6); }
+.st-waiting { color:#d9b45b; }
+.st-pending { color:var(--muted); }
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+
+.item { padding:11px; border:1px solid var(--line); margin:7px 0; background:var(--panel2); border-left:2px solid var(--gold2);
+        transition:transform .25s cubic-bezier(.34,1.56,.64,1); animation:riseElastic .5s cubic-bezier(.34,1.56,.64,1) backwards; }
+.item:hover { transform:translateX(6px); border-color:rgba(56,189,248,.5); }
+.item .name { font-weight:900; }
+.item .result { color:var(--muted); font-size:12px; margin-top:4px; }
+.mlist { max-height:300px; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
+.badge { display:inline-block; padding:2px 8px; border:1px solid var(--gold2); color:var(--gold3); font-size:11px; margin-left:6px; letter-spacing:1px; }
+.empty { color:var(--muted); font-size:13px; padding:8px 0; }
+.log li { font-size:12px; }
+</style>
+</head>
+<body>
+<div class="shine"></div>
+<div class="geo"><span class="circle"></span><span class="circle circle2"></span><span class="tri"></span></div>
+
+<div id="app">
+  <header>
+    <div class="mark"><i></i><b></b></div>
+    <h1>会议准备<em> · 自动化工作台</em></h1>
+    <span class="sub">双端实时联动 · 桌面 / Web / 鸿蒙</span>
+  </header>
+
+  <main>
+    <div class="card" style="animation-delay:.05s">
+      <h2>新建会议</h2>
+      <input v-model="newTitle" placeholder="会议主题，如：Q3 项目评审会">
+      <input v-model="newTime" placeholder="会议时间，格式：2026-08-06 14:00（可留空）">
+      <button @click="createMeeting">创建并开始准备</button>
+
+      <h3>会议列表</h3>
+      <div class="mlist">
+        <ul>
+          <li v-for="m in meetings" :key="m.id" style="cursor:pointer"
+              @click="openMeeting(m.id)">
+            {{ m.title }} <span class="status st-pending">[{{ m.status }}]</span>
+            <span style="color:var(--muted)">{{ m.start_time }}</span>
+          </li>
+          <li v-if="!meetings.length" class="empty">暂无会议</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card" v-if="current" style="animation-delay:.1s">
+      <h2>{{ current.meeting.title }}</h2>
+      <p style="color:var(--muted);margin-bottom:8px">
+        时间：{{ current.meeting.start_time || '未定' }}
+        <span class="badge">状态 {{ current.meeting.status }}</span></p>
+      <p style="color:var(--gold3);font-size:12px;margin-bottom:10px">
+        会议室：{{ current.meeting.room || '待定' }}
+        ｜ 送达地点：{{ current.meeting.location || '—' }}
+        ｜ 与会：{{ current.meeting.attendees || '待定' }}</p>
+      <button class="ghost" @click="runPhase1">重跑一阶段</button>
+
+      <h3>一阶段 · 并行</h3>
+      <div class="item" v-for="(it,i) in current.phase1" :key="it.id" :style="'animation-delay:'+i*0.05+'s'">
+        <div><span class="name">{{ it.name }}</span>
+             <span class="status" :class="'st-'+it.status">[{{ it.status }}]</span></div>
+        <div class="result" v-if="it.result">{{ it.result }}</div>
+        <button v-if="it.status==='waiting'" @click="actItem(it)">{{ btnText(it) }}</button>
+      </div>
+
+      <h3>二阶段 · 串行</h3>
+      <div class="item" v-for="(it,i) in current.phase2" :key="it.id" :style="'animation-delay:'+i*0.05+'s'">
+        <div><span class="name">{{ it.name }}</span>
+             <span class="status" :class="'st-'+it.status">[{{ it.status }}]</span></div>
+        <div class="result" v-if="it.result">{{ it.result }}</div>
+        <button v-if="it.status==='waiting'" @click="actItem(it)">{{ btnText(it) }}</button>
+      </div>
+    </div>
+
+    <div class="card" style="animation-delay:.15s">
+      <h2>手动录入信息</h2>
+      <textarea v-model="manualText" rows="4" placeholder="粘贴/输入收集到的信息，交给 AI 提炼"></textarea>
+      <button @click="submitInfo">提交</button>
+      <h3>信息库</h3>
+      <div class="mlist"><ul>
+        <li v-for="i in infos" :key="i.id">
+          <span class="status st-done">[{{ i.source }}]</span> {{ i.content }}
+        </li>
+        <li v-if="!infos.length" class="empty">暂无信息</li>
+      </ul></div>
+    </div>
+
+    <div class="card" style="animation-delay:.2s">
+      <h2>动作日志</h2>
+      <div class="mlist"><ul>
+        <li v-for="l in logs" :key="l.id">
+          <span class="status" :class="'st-'+l.status">{{ l.action }} [{{ l.status }}]</span>
+          <div class="result">{{ l.message }}</div>
+        </li>
+      </ul></div>
+      <h3>设置</h3>
+      <div v-for="it in settings.items" :key="it.key" style="margin:8px 0">
+        <label style="display:block;color:var(--ink);font-size:12px;font-weight:900">{{ it.label }}</label>
+        <div style="color:var(--muted);font-size:11px;margin:1px 0 3px">{{ it.description }}</div>
+        <input v-if="it.type==='bool'" type="checkbox"
+               v-model="settings.values[it.key]" style="width:auto">
+        <input v-else :type="it.type==='password'?'password':'text'"
+               v-model="settings.values[it.key]">
+      </div>
+      <button @click="saveSettings">保存设置</button>
+
+      <h3>会议室库</h3>
+      <div style="display:flex;gap:6px">
+        <input v-model="newRoom" placeholder="如 3F-301">
+        <button @click="addRoom">添加</button>
+      </div>
+      <div class="mlist"><ul>
+        <li v-for="r in rooms" :key="r.id">
+          {{ r.name }} <button class="ghost" style="float:right" @click="delRoom(r.id)">删除</button>
+        </li>
+        <li v-if="!rooms.length" class="empty">暂无会议室</li>
+      </ul></div>
+
+      <h3>手机联动号码</h3>
+      <div v-for="(label, code) in numberLabels" :key="code" style="display:flex;align-items:center;gap:8px;margin:5px 0">
+        <span style="width:90px;color:var(--muted);font-size:12px">{{ label }}</span>
+        <input v-model="numbers[code]" placeholder="电话号码">
+      </div>
+      <button @click="saveNumbers">保存号码</button>
+
+      <h3>话术模板</h3>
+      <div style="display:flex;gap:6px;align-items:center;margin:6px 0">
+        <select v-model="tplCode" @change="loadTpl" style="background:var(--panel2);color:var(--ink);border:1px solid var(--line);padding:7px">
+          <option v-for="t in templates" :key="t.code" :value="t.code">{{ t.label }} ({{ t.code }})</option>
+        </select>
+        <label style="color:var(--muted);font-size:12px"><input type="checkbox" v-model="tplAI"> AI 润色</label>
+        <button @click="saveTpl">保存</button>
+      </div>
+      <textarea v-model="tplText" rows="3" placeholder="话术模板，变量：{room} {time} {attendees} {count} {location} {title} {file}"></textarea>
+    </div>
+
+    <div class="card" style="animation-delay:.25s">
+      <h2>运行状态</h2>
+      <div v-if="status">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <tr v-for="sv in status.status.services" :key="sv.key" style="border-bottom:1px solid var(--line)">
+            <td style="padding:5px">{{ sv.name }}</td>
+            <td><span class="status" :class="(sv.running===false||sv.enabled===false||sv.available===false)?'st-waiting':'st-done'">
+              {{ sv.running===false?'未启动':(sv.enabled===false?'已关闭':(sv.available===false?'未配置':'运行中')) }}</span></td>
+            <td style="color:var(--muted)">{{ sv.port?('端口 '+sv.port):(sv.interval?('间隔 '+sv.interval+'s'):'') }}</td>
+          </tr>
+        </table>
+        <div style="margin-top:8px;color:var(--muted);font-size:11px">
+          数据：信息 {{ status.status.counts.info_items }} · 会议 {{ status.status.counts.meetings }}
+          · 动作项 {{ status.status.counts.prep_items }} · 会议室 {{ status.status.counts.rooms }}
+          · 日志 {{ status.status.counts.action_logs }} ｜ PID {{ status.status.process.pid }} ｜ 更新 {{ status.status.time }}
+        </div>
+      </div>
+      <h3>最近日志</h3>
+      <div class="mlist"><ul>
+        <li v-for="(l,i) in status && status.logs" :key="i" class="log">{{ l }}</li>
+      </ul></div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ── 粒子背景 ──
+(function () {
+  const c = document.createElement('canvas');
+  c.id = 'particles';
+  document.body.prepend(c);
+  const ctx = c.getContext('2d');
+  let dots = [];
+  function size() { c.width = innerWidth; c.height = innerHeight; }
+  size(); addEventListener('resize', size);
+  for (let i = 0; i < 55; i++) {
+    dots.push({ x: Math.random() * innerWidth, y: Math.random() * innerHeight,
+      vx: (Math.random() - .5) * .35, vy: (Math.random() - .5) * .35,
+      r: Math.random() * 1.8 + .6, cyan: Math.random() > .45 });
+  }
+  (function frame() {
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (const d of dots) {
+      d.x += d.vx; d.y += d.vy;
+      if (d.x < 0 || d.x > c.width) d.vx *= -1;
+      if (d.y < 0 || d.y > c.height) d.vy *= -1;
+      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, 7);
+      ctx.fillStyle = d.cyan ? 'rgba(56,189,248,0.5)' : 'rgba(212,175,122,0.4)';
+      ctx.fill();
+    }
+    requestAnimationFrame(frame);
+  })();
+})();
+
+// ── 按钮点击波纹 ──
+document.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const r = b.getBoundingClientRect();
+  const s = document.createElement('span');
+  s.className = 'ripple';
+  s.style.cssText = `left:${e.clientX - r.left}px;top:${e.clientY - r.top}px`;
+  b.appendChild(s);
+  setTimeout(() => s.remove(), 700);
+});
+
+const { createApp } = Vue;
+createApp({
+  data() {
+    return { meetings: [], current: null, infos: [], logs: [], settings: { items: [], values: {} },
+             rooms: [], newRoom: '', numbers: [], numberLabels: {},
+             templates: [], tplCode: 'call_room', tplText: '', tplAI: false,
+             status: null,
+             newTitle: '', newTime: '', manualText: '' };
+  },
+  mounted() {
+    this.reload();
+    this.loadSettings();
+    this.loadRooms(); this.loadNumbers(); this.loadTemplates();
+    this.loadStatus();
+    setInterval(() => this.autoRefresh(), 5000);
+  },
+  methods: {
+    async api(path, opts) {
+      const r = await fetch(path, opts);
+      return r.json();
+    },
+    async reload() {
+      this.meetings = await this.api('/api/meetings');
+      this.infos = await this.api('/api/info');
+      this.logs = await this.api('/api/logs');
+    },
+    async autoRefresh() {
+      this.infos = await this.api('/api/info');
+      this.logs = await this.api('/api/logs');
+      this.meetings = await this.api('/api/meetings');
+      this.loadStatus();
+      if (this.current) {
+        this.current = await this.api('/api/meetings/' + this.current.meeting.id);
+      }
+    },
+    async loadStatus() {
+      try { this.status = await this.api('/api/status'); } catch (e) {}
+    },
+    async loadSettings() {
+      this.settings = await this.api('/api/settings');
+    },
+    async saveSettings() {
+      await this.api('/api/settings', {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(this.settings.values)
+      });
+      await this.loadSettings();
+    },
+    async loadRooms() { this.rooms = await this.api('/api/rooms'); },
+    async addRoom() {
+      if (!this.newRoom.trim()) return;
+      await this.api('/api/rooms', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ name: this.newRoom.trim() })
+      });
+      this.newRoom=''; await this.loadRooms();
+    },
+    async delRoom(id) { await this.api('/api/rooms/' + id, { method: 'DELETE' }); await this.loadRooms(); },
+    async loadNumbers() {
+      const list = await this.api('/api/phone-numbers');
+      this.numbers = {};
+      list.forEach(n => this.numbers[n.code] = n.number || '');
+      this.numberLabels = { call_room:'会议室', call_tea:'茶水', call_service:'服务',
+        call_facilities:'音响/投影设施', call_table_card:'桌牌', call_print:'印刷' };
+    },
+    async saveNumbers() {
+      for (const code in this.numbers) {
+        await this.api('/api/phone-numbers/' + code, {
+          method: 'PUT', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ number: this.numbers[code] || '' })
+        });
+      }
+    },
+    async loadTemplates() { this.templates = await this.api('/api/templates'); },
+    async loadTpl() {
+      const t = this.templates.find(x => x.code === this.tplCode);
+      this.tplText = t ? t.template : ''; this.tplAI = t ? !!t.use_ai : false;
+    },
+    async saveTpl() {
+      await this.api('/api/templates/' + this.tplCode, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ template: this.tplText, use_ai: this.tplAI })
+      });
+      await this.loadTemplates();
+    },
+    async createMeeting() {
+      if (!this.newTitle.trim()) return alert('请填写会议主题');
+      const d = await this.api('/api/meetings', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ title: this.newTitle, start_time: this.newTime || null })
+      });
+      this.newTitle=''; this.newTime='';
+      this.current = d;
+      await this.reload();
+    },
+    async openMeeting(id) {
+      this.current = await this.api('/api/meetings/' + id);
+    },
+    async runPhase1() {
+      if (!this.current) return;
+      this.current = await this.api('/api/meetings/' + this.current.meeting.id + '/run-phase1', { method: 'POST' });
+    },
+    async approveItem(it) {
+      this.current = await this.api(`/api/meetings/${this.current.meeting.id}/prep/${it.id}/approve`, {
+        method: 'POST'
+      });
+    },
+    btnText(it) {
+      if (it.code === 'call_room') return '选会议室';
+      if (it.code === 'call_table_card') return '定人员';
+      return '执行/确认';
+    },
+    async actItem(it) {
+      const id = this.current.meeting.id;
+      if (it.code === 'call_room') {
+        let cand = [];
+        try { cand = (await this.api(`/api/meetings/${id}/room-candidates`)).candidates || []; } catch (e) {}
+        const room = prompt('请选择会议室（可用：' + (cand.join(', ') || '无') + '）：', '');
+        if (!room) return;
+        await this.api(`/api/meetings/${id}/set-room`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ name: room })
+        });
+      } else if (it.code === 'call_table_card') {
+        const names = prompt('请输入与会人员（逗号分隔）：', '');
+        if (!names) return;
+        await this.api(`/api/meetings/${id}/set-attendees`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ attendees: names, source: 'manual' })
+        });
+      } else {
+        await this.approveItem(it);
+      }
+      this.current = await this.api('/api/meetings/' + id);
+    },
+    async submitInfo() {
+      if (!this.manualText.trim()) return;
+      await this.api('/api/info', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ text: this.manualText, meeting_id: this.current ? this.current.meeting.id : null })
+      });
+      this.manualText='';
+      await this.reload();
+    }
+  }
+}).mount('#app');
+</script>
+</body>
+</html>

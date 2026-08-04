@@ -1,0 +1,8 @@
+{
+  "modelVersion": "5.0.0",
+  "name": "meeting_prep_phone",
+  "version": "1.0.0",
+  "description": "会议准备 · 手机联动",
+  "dependencies": {},
+  "devDependencies": {}
+}
