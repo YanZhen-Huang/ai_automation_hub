@@ -85,7 +85,9 @@ def approve(item_id):
                       {"item_id": item_id, "meeting_id": item["meeting_id"],
                        "name": item["name"]})
         return
-    if item["code"] == "call_table_card" and not (meeting.get("attendees") or "").strip():
+    if item["code"] in ("call_table_card", "prep_materials") \
+            and not (meeting.get("attendees") or "").strip():
+        # 桌牌 / 印刷份数都依赖与会人员：人员未定先请求确定，确定后自动继续
         bus().publish("attendees.requested",
                       {"item_id": item_id, "meeting_id": item["meeting_id"],
                        "name": item["name"]})
@@ -113,9 +115,10 @@ def set_room(meeting_id, room):
 
 
 def set_attendees(meeting_id, attendees, source="manual"):
-    """用户确定与会人员后，继续执行桌牌动作。"""
+    """用户确定与会人员后，继续执行依赖人员的动作（桌牌 / 印刷份数）。"""
     db.update_meeting(meeting_id, attendees=attendees, attendee_source=source)
     _resume_waiting(meeting_id, "call_table_card")
+    _resume_waiting(meeting_id, "prep_materials")
 
 
 def _resume_waiting(meeting_id, code):
