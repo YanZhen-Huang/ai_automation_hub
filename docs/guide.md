@@ -330,7 +330,7 @@ python -m venv .venv
 # 安装版（先打 zip 再打包安装器）
 Compress-Archive dist\meeting_prep\* build\meeting_prep_pkg.zip
 .venv\Scripts\python -m PyInstaller --noconfirm --onefile --windowed ^
-  --name meeting_prep_setup --add-data "build/meeting_prep_pkg.zip;." build/installer_setup.py
+  --name meeting_prep_setup --add-data "build/meeting_prep_pkg.zip;." scripts/installer_setup.py
 ```
 
 ### 10.3 产物

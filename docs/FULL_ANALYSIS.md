@@ -296,7 +296,7 @@ python -m venv .venv
 # 打 zip（排除 data）→ 安装器
 Compress-Archive dist\meeting_prep\* build\meeting_prep_pkg.zip
 .venv\Scripts\python -m PyInstaller --noconfirm --onefile --windowed ^
-  --name meeting_prep_setup --add-data "build/meeting_prep_pkg.zip;." build/installer_setup.py
+  --name meeting_prep_setup --add-data "build/meeting_prep_pkg.zip;." scripts/installer_setup.py
 ```
 打包要点：uvicorn 需 `log_config=None`（windowed 下 stdout 为 None）；前端资源 frozen 路径适配（`_MEIPASS`/exe 旁）；rapidocr 需 `--collect-all` 带模型；安装器安装完成后**自动启动主程序**。
 

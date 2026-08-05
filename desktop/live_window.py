@@ -6,7 +6,6 @@ import time
 import tkinter as tk
 from datetime import datetime
 
-from core.config import CONFIG
 from storage import db
 
 BG = "#0a0e1a"

@@ -223,11 +223,6 @@ def on_phone_result(payload):
         bus().publish("prep.updated", {"item_id": item_id})
 
 
-def _call_text(code, meeting):
-    # 兼容旧调用：统一走话术中心
-    return phrases.fill(code, meeting)
-
-
 def _notify_text(meeting):
     parts = [f"会议通知：{meeting.get('title') or ''}"]
     if meeting.get("start_time"):
