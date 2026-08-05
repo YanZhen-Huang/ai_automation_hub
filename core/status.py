@@ -46,6 +46,9 @@ def service_status():
             {"name": "微信联动", "key": "wechat",
              "send_enabled": bool(CONFIG.get("wechat", {}).get("send_enabled")),
              "running": True},
+            {"name": "智能采集", "key": "scan",
+             "enabled": bool(CONFIG.get("scan", {}).get("enabled")),
+             "running": bool(CONFIG.get("scan", {}).get("enabled"))},
         ],
         "process": {
             "pid": os.getpid(),

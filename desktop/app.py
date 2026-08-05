@@ -404,6 +404,22 @@ class DesktopApp:
         nb.add(page, text="运行状态")
         ttk.Button(page, text="刷新", command=self.refresh_status).pack(
             anchor="w", padx=6, pady=6)
+
+        ttk.Label(page, text="智能采集（AI+模拟操作+OCR）",
+                  font=("Microsoft YaHei UI", 10, "bold"),
+                  foreground=CYAN).pack(anchor="w", padx=6)
+        bar = ttk.Frame(page)
+        bar.pack(fill=tk.X, padx=6)
+        self.scan_state = ttk.Label(bar, text="状态: 未启动",
+                                    foreground=MUTED)
+        self.scan_state.pack(side=tk.LEFT)
+        ttk.Button(bar, text="立即采集", command=self._scan_run).pack(side=tk.RIGHT, padx=2)
+        ttk.Button(bar, text="停止", command=self._scan_stop).pack(side=tk.RIGHT, padx=2)
+        self.scan_progress = tk.Listbox(page, bg=PANEL, fg=INK, relief="flat",
+                                        height=5, highlightthickness=1,
+                                        highlightbackground=LINE)
+        self.scan_progress.pack(fill=tk.X, padx=6, pady=4)
+
         self.status_tree = ttk.Treeview(page, columns=("name", "state", "detail"),
                                         show="headings", height=8)
         for col, w, hd in (("name", 120, "服务"), ("state", 90, "状态"),
@@ -427,6 +443,26 @@ class DesktopApp:
                                      highlightthickness=1, highlightbackground=LINE)
         self.status_log.pack(fill=tk.BOTH, expand=True, padx=6, pady=6)
         self.refresh_status()
+
+    def _scan_run(self):
+        from automation.smart_scan import engine
+        if engine.status != "running":
+            threading.Thread(target=engine.run_once, daemon=True).start()
+        self._refresh_scan()
+
+    def _scan_stop(self):
+        from automation.smart_scan import engine
+        engine.stop()
+        self._refresh_scan()
+
+    def _refresh_scan(self):
+        from automation.smart_scan import engine
+        text = {"idle": "未启动", "running": "采集中", "stopped": "已停止"}.get(
+            engine.status, engine.status)
+        self.scan_state.config(text=f"状态: {text}")
+        self.scan_progress.delete(0, "end")
+        for ts, msg in engine.progress[-12:]:
+            self.scan_progress.insert("end", f"{ts} {msg}")
 
     def refresh_status(self):
         from core import status as st
@@ -478,6 +514,7 @@ class DesktopApp:
                         lambda p: self._post(self._ask_room, p))
         bus().subscribe("attendees.requested",
                         lambda p: self._post(self._ask_attendees, p))
+        bus().subscribe("scan.progress", lambda p: self._post(self._refresh_scan))
 
     def _post(self, fn, *args):
         self._uiq.put((fn, args))

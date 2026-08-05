@@ -213,6 +213,21 @@ def room_candidates(meeting_id: int):
     return {"candidates": workflows.candidates_for_room(meeting_id)}
 
 
+@router.get("/scan/status")
+def scan_status():
+    from automation.smart_scan import engine
+    return {"status": engine.status, "progress": engine.progress}
+
+
+@router.post("/scan/run")
+def scan_run():
+    import threading
+    from automation.smart_scan import engine
+    if engine.status != "running":
+        threading.Thread(target=engine.run_once, daemon=True).start()
+    return {"status": engine.status}
+
+
 class TaskIn(BaseModel):
     title: str
     detail: str = ""

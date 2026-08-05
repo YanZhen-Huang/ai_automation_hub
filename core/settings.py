@@ -41,6 +41,20 @@ SETTING_ITEMS = [
      "description": "搜索目标后等待结果出现的秒数，网络慢时可调大"},
     {"key": "speech.whisper_model", "label": "Whisper 模型", "type": "text",
      "description": "录音转文字模型：tiny/base/small/medium/large，越大越准越慢"},
+    {"key": "scan.enabled", "label": "智能采集（AI+模拟操作）", "type": "bool",
+     "description": "开启后自动遍历聊天会话，AI 筛选重点对象并模拟点击+OCR 采集（默认关）"},
+    {"key": "scan.app", "label": "智能采集应用", "type": "text",
+     "description": "wechat / dingtalk / feishu，当前优先微信"},
+    {"key": "scan.interval_seconds", "label": "智能采集间隔(秒)", "type": "int",
+     "description": "自动轮询采集频率"},
+    {"key": "scan.max_sessions", "label": "每轮最多采集会话数", "type": "int",
+     "description": "限制单轮模拟点击的会话数量，防误操作"},
+    {"key": "scan.msg_top", "label": "消息区起点比例", "type": "text",
+     "description": "窗口内消息区从高度占比处开始（0~1，默认0.4）"},
+    {"key": "scan.focus_names", "label": "重点识别对象昵称", "type": "text",
+     "description": "逗号分隔的昵称/群名，采集时优先识别这些对象"},
+    {"key": "scan.role", "label": "角色上下文", "type": "text",
+     "description": "AI 识别时聚焦的角色，默认「技术科科长」"},
 ]
 
 

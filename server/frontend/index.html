@@ -250,6 +250,12 @@ li:last-child { border-bottom:0; }
           · 动作项 {{ status.status.counts.prep_items }} · 会议室 {{ status.status.counts.rooms }}
           · 日志 {{ status.status.counts.action_logs }} ｜ PID {{ status.status.process.pid }} ｜ 更新 {{ status.status.time }}
         </div>
+        <h3>智能采集</h3>
+        <p style="font-size:12px;color:var(--muted)">状态：{{ scanInfo.status }}
+          <button style="margin-left:8px" @click="runScan">立即采集</button></p>
+        <div class="mlist"><ul>
+          <li v-for="(p,i) in scanInfo.progress" :key="i" class="log">{{ p[0] }} {{ p[1] }}</li>
+        </ul></div>
       </div>
       <h3>最近日志</h3>
       <div class="mlist"><ul>
@@ -307,13 +313,14 @@ createApp({
              rooms: [], newRoom: '', numbers: [], numberLabels: {},
              templates: [], tplCode: 'call_room', tplText: '', tplAI: false,
              status: null, tasks: [], newTaskTitle: '', newTaskDue: '',
+             scanInfo: { status: 'idle', progress: [] },
              newTitle: '', newTime: '', manualText: '' };
   },
   mounted() {
     this.reload();
     this.loadSettings();
     this.loadRooms(); this.loadNumbers(); this.loadTemplates();
-    this.loadStatus(); this.loadTasks();
+    this.loadStatus(); this.loadTasks(); this.loadScan();
     setInterval(() => this.autoRefresh(), 5000);
   },
   methods: {
@@ -330,7 +337,7 @@ createApp({
       this.infos = await this.api('/api/info');
       this.logs = await this.api('/api/logs');
       this.meetings = await this.api('/api/meetings');
-      this.loadStatus(); this.loadTasks();
+      this.loadStatus(); this.loadTasks(); this.loadScan();
       if (this.current) {
         try {
           this.current = await this.api('/api/meetings/' + this.current.meeting.id);
@@ -338,6 +345,13 @@ createApp({
           this.current = null;
         }
       }
+    },
+    async loadScan() {
+      try { this.scanInfo = await this.api('/api/scan/status'); } catch (e) {}
+    },
+    async runScan() {
+      await this.api('/api/scan/run', { method: 'POST' });
+      this.loadScan();
     },
     async loadStatus() {
       try { this.status = await this.api('/api/status'); } catch (e) {}

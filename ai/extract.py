@@ -44,7 +44,14 @@ def _rule_extract(texts):
     }
 
 
-def extract(texts):
+def _role_system(prompt, role):
+    if not role:
+        return prompt
+    return (f"{prompt}\n你的身份：{role}。请优先聚焦与{role}职责相关"
+            f"（技术方案、设备、项目、科内事务等）的信息。")
+
+
+def extract(texts, role=None):
     if not texts:
         return {"is_meeting_related": False, "summary": "无内容",
                 "points": [], "prep_reminders": []}
@@ -52,7 +59,7 @@ def extract(texts):
         return _rule_extract(texts)
     try:
         resp = llm.chat([
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": _role_system(SYSTEM_PROMPT, role)},
             {"role": "user", "content": json.dumps(texts, ensure_ascii=False)},
         ], temperature=0.1)
         m = re.search(r"\{.*\}", resp, re.S)
@@ -192,6 +199,14 @@ def _find_date(text):
     return None
 
 
+TASK_KEYWORDS = ["汇报", "提交", "跟进", "开会", "会议", "交材料", "写文档", "写报告",
+                 "准备", "整理", "审批", "待办", "记得", "别忘了", "务必", "尽快",
+                 "截止", "到期", "今天", "明天", "后天", "下周", "礼拜",
+                 "周一", "周二", "周三", "周四", "周五", "周六", "周日", "月", "日"]
+TASK_STRONG = ["汇报", "提交", "跟进", "开会", "会议", "交材料", "写文档", "写报告",
+               "记得", "别忘了", "务必", "尽快", "截止", "到期"]
+
+
 def _rule_tasks(texts):
     out = []
     for msg in texts or []:
@@ -205,7 +220,7 @@ def _rule_tasks(texts):
     return out
 
 
-def extract_tasks(texts):
+def extract_tasks(texts, role=None):
     """从信息中提炼待办任务。返回 list[{title, due_date, detail}]。"""
     if not texts:
         return []
@@ -213,7 +228,7 @@ def extract_tasks(texts):
         return _rule_tasks(texts)
     try:
         resp = llm.chat([
-            {"role": "system", "content": TASK_PROMPT},
+            {"role": "system", "content": _role_system(TASK_PROMPT, role)},
             {"role": "user", "content": json.dumps(texts, ensure_ascii=False)},
         ], temperature=0.1, max_tokens=1500)
         m = re.search(r"\[.*\]", resp, re.S)
@@ -232,3 +247,47 @@ def extract_tasks(texts):
     except Exception:
         log.exception("AI 任务提炼失败，降级规则")
         return _rule_tasks(texts)
+
+
+def select_sessions(names, focus_names="", role="", limit=5):
+    """从会话列表中选出要采集的重点会话。
+    优先命中 focus_names（重点对象），其次与 role（如技术科）相关，最后 AI 综合判断。"""
+    names = [n for n in (names or []) if n and n.strip()]
+    if not names:
+        return []
+    focus = [f.strip() for f in str(focus_names).replace("，", ",").split(",")
+             if f.strip()]
+    chosen = []
+    for f in focus:
+        for n in names:
+            if f in n or n in f:
+                if n not in chosen:
+                    chosen.append(n)
+    rest = [n for n in names if n not in chosen]
+    if rest and llm.available():
+        try:
+            prompt = (
+                f"你是{role or '行政助手'}的采集助手。从候选会话中选出需要重点采集的"
+                f"会话（与{role or '工作'}相关：技术方案/设备/项目/会议/汇报/材料/科内事务，"
+                f"以及重点对象）。重点对象：{focus or '无'}。"
+                f"候选：{json.dumps(rest, ensure_ascii=False)}。输出 JSON 字符串数组。")
+            resp = llm.chat([{"role": "system", "content": "只输出 JSON 数组"},
+                             {"role": "user", "content": prompt}],
+                            temperature=0.1, max_tokens=400)
+            m = re.search(r"\[.*\]", resp, re.S)
+            data = json.loads(m.group(0)) if m else []
+            for n in data:
+                s = str(n).strip()
+                if s in rest and s not in chosen:
+                    chosen.append(s)
+        except Exception:
+            log.exception("AI 会话筛选失败，降级规则")
+    # 关键词降级（补充剩余）
+    role_kw = ["技术", "方案", "设备", "项目", "系统", "科", "进度", "汇报",
+               "材料", "评审", "会议", "周报", "月报"]
+    for n in rest:
+        if n in chosen:
+            continue
+        if any(k in n for k in role_kw):
+            chosen.append(n)
+    return chosen[:max(1, limit)]

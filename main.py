@@ -93,6 +93,18 @@ def collect_ocr():
     _throttle(collect_ocr, "ocr.interval_seconds", 120, _ocr_work)
 
 
+def scan_once():
+    """智能采集（AI+模拟操作+OCR），后台线程执行，不阻塞调度器。"""
+    if not CONFIG.get("scan", {}).get("enabled", False):
+        return
+    threading.Thread(target=_scan_worker, daemon=True).start()
+
+
+def _scan_worker():
+    from automation.smart_scan import engine
+    engine.run_once()
+
+
 def start_web():
     try:
         import uvicorn
@@ -146,6 +158,7 @@ def main():
     scheduler().every(15, collect_once)
     if CONFIG.get("collect", {}).get("ocr_enabled"):
         scheduler().every(15, collect_ocr)
+    scheduler().every(15, scan_once)
     scheduler().start()
 
     events = _queue.Queue()

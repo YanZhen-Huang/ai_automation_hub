@@ -59,6 +59,17 @@ DEFAULTS = {
         "port": 8781,
         "token": "",
     },
+    "scan": {
+        "enabled": False,
+        "app": "wechat",
+        "interval_seconds": 300,
+        "max_sessions": 5,
+        "msg_top": 0.4,
+        "focus_only": True,
+        "load_delay": 1.5,
+        "focus_names": "",
+        "role": "技术科科长",
+    },
     "desktop": {
         "live_enabled": True,
     },
