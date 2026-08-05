@@ -281,7 +281,10 @@ class DesktopApp:
                 dl.bind("<MouseWheel>", _wheel)
             if it["type"] == "bool":
                 var = tk.BooleanVar(value=bool(values.get(key)))
-                cb = ttk.Checkbutton(inner, variable=var)
+                cb = tk.Checkbutton(inner, variable=var, bg=PANEL, fg=INK,
+                                    activebackground=PANEL, activeforeground=INK,
+                                    selectcolor=PANEL, highlightthickness=0,
+                                    bd=0)
                 cb.grid(row=row, column=1, padx=6)
                 cb.bind("<MouseWheel>", _wheel)
             else:
@@ -334,7 +337,9 @@ class DesktopApp:
         self.tpl_text.grid(row=row, column=0, columnspan=2, sticky="ew", padx=6)
         row += 1
         self.tpl_ai = tk.BooleanVar()
-        ttk.Checkbutton(inner, text="AI 润色话术", variable=self.tpl_ai).grid(
+        tk.Checkbutton(inner, text="AI 润色话术", variable=self.tpl_ai, bg=PANEL,
+                       fg=INK, activebackground=PANEL, activeforeground=INK,
+                       selectcolor=PANEL, highlightthickness=0, bd=0).grid(
             row=row, column=0, padx=6, pady=3, sticky="w")
         ttk.Button(inner, text="保存模板", command=self._save_tpl).grid(
             row=row, column=1, padx=6)
