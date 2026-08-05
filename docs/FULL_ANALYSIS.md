@@ -32,10 +32,11 @@ ai_automation_hub/
 ├── requirements.txt              # 依赖清单
 ├── core/
 │   ├── config.py                 # 配置中心：DEFAULTS + config.json 深合并 + phone token 自动生成
-│   ├── settings.py               # 设置中心：16 个可编辑设置项(白名单) + 取值/保存
+│   ├── settings.py               # 设置中心：可编辑设置项(白名单) + 取值/保存
+│   ├── dates.py                  # 日期解析/规范化（今天/明天/周X/X月X日 → YYYY-MM-DD）
 │   ├── events.py                 # 线程安全事件总线(发布/订阅)
 │   ├── scheduler.py              # 调度器：周期任务(单线程)
-│   ├── logger.py                 # 日志：文件 app.log + 控制台(windowed 下跳过 stdout)
+│   ├── logger.py                 # 日志：文件轮转 + 控制台
 │   └── status.py                 # 运行状态采集：服务/进程/统计/最近日志
 ├── storage/db.py                 # SQLite 访问层（7 张表 + CRUD）
 ├── collectors/
@@ -49,10 +50,11 @@ ai_automation_hub/
 │   ├── llm.py                    # LLM 客户端(OpenAI 兼容/DeepSeek)，timeout=60
 │   └── extract.py                # 提炼：extract/extract_rooms/extract_attendees/generate_materials
 ├── automation/
-│   ├── workflows.py              # 固定工作流定义与执行（状态机核心）
-│   ├── actions.py                # 动作库 + 微信 UIA 发文本/文件 + 文件名清洗
+│   ├── workflows.py              # 固定工作流定义与执行（状态机核心）+ 材料/PPT/文件三步
+│   ├── actions.py                # 动作库 + 微信 UIA 发文本/文件 + md→PDF + 文件名清洗
 │   ├── phrases.py                # 话术中心：模板+变量填充+AI 润色
-│   └── phone_link.py             # 桌面端手机联动 HTTP 服务（任务队列+token+超时重投递）
+│   ├── phone_link.py             # 桌面端手机联动 HTTP 服务（任务队列+token+超时重投递）
+│   └── smart_scan.py             # 智能采集引擎（AI+模拟操作+OCR 遍历会话）
 ├── desktop/app.py                # tkinter 主窗口（7 页签 + 事件队列线程安全）
 ├── desktop/live_window.py        # 待办任务实况窗（右侧置顶卡片，整合自 desk）
 ├── server/
@@ -78,7 +80,7 @@ ai_automation_hub/
 | created_at | TEXT | ISO 时间 |
 
 **meetings（会议库）**
-id PK, title, start_time, status(preparing/prepared/cancelled), room(选定会议室), location(送达地点), attendees(与会人员，逗号分隔), attendee_source(ai/manual), created_at。
+id PK, title, start_time, status(preparing/prepared/cancelled), room(选定会议室), location(送达地点), attendees(与会人员，逗号分隔), attendee_source(ai/manual), **auto_materials**(1=AI自动生成材料发送/0=人工), **materials**(材料 JSON), created_at。
 > 旧库迁移：`_ensure_columns` 自动为缺列 ADD COLUMN。
 
 **rooms（会议室库）**：id PK, name, status(active), note, created_at。
@@ -98,6 +100,8 @@ id PK, title, start_time, status(preparing/prepared/cancelled), room(选定会�
 
 **tasks（待办任务，整合自 desk_task_board）**：id PK, title, detail, due_date, source(ai/manual), status(active/dismissed/done), info_id(关联信息), created_at, updated_at。
 
+**meeting_files（会议材料文件）**：id PK, meeting_id, name, path, ftype(pptx/md/pdf), sent(0/1), created_at。
+
 ## 5. 配置系统
 
 `data/config.json`，默认值见 `core/config.py` DEFAULTS。关键配置：
@@ -110,7 +114,10 @@ id PK, title, start_time, status(preparing/prepared/cancelled), room(选定会�
   "ocr": {"interval_seconds":120,"region":"0,0,800,600","engine":"rapidocr"},
   "wechat": {"send_enabled":false,"notify_target":"","print_target":"","send_delay":3},
   "speech": {"whisper_model":"small","device":"auto"},
-  "phone": {"enabled":true,"host":"0.0.0.0","port":8781,"token":"<首次启动自动生成>"}
+  "phone": {"enabled":true,"host":"0.0.0.0","port":8781,"token":"<首次启动自动生成>"},
+  "scan": {"enabled":false,"app":"wechat","interval_seconds":300,"max_sessions":5,
+           "msg_top":0.4,"focus_only":true,"load_delay":1.5,
+           "focus_names":"<重点识别对象昵称，逗号分隔>","role":"技术科科长"}
 }
 ```
 
@@ -177,22 +184,27 @@ pending →(request_approval)→ waiting →(approve)→ running →(phone.resul
 - `on_phone_result`：ok→done(记录确认)；失败→waiting(可重试)。
 - `on_phone_timeout`：手机超时→waiting。
 
-### 材料生成链路（prep_materials）
-1. 取本会议 info（**不回退全库**，防串会）前 50 条
-2. `generate_materials(title, texts)` → `{summary, chapters:[{heading, points}]}`（LLM；无 Key 降级单章）
-3. `_make_ppt`：python-pptx 封面+每章+总结（文件名 `sanitize_filename`）
-4. `_make_doc`：markdown 文档
-5. `send_wechat_file(ppt, print_target)` 自动微信发文件（可配置开关）
-6. `phrases.fill("call_print", meeting, {file,count})` → 手机电话话术（含送达地点）
+### 材料生成链路（prep_materials，三步 + 双线）
+
+**三步**：`gen_materials`（AI 生成材料并存储）→ `gen_files`（PPT/md/PDF 生成，按会议分组到 `data/out/{id}_{会议名}/`，登记 meeting_files）→ `send_files_to_print`（微信发文件给印刷联系人）。
+
+**每会议双线**（`meetings.auto_materials`）：
+- `=1`（默认，AI 自动）：approve → 自动完成三步 + 电话安排印刷
+- `=0`（人工）：approve → 仅生成材料+文件，标记 done「材料已生成，请到会议详情手动选择文件发送」；人工在「材料/文件」区**编辑材料 JSON**、**生成 PPT/PDF**、**指定发送任意文件**
+
+**印刷份数** = 与会人数 + 5（`_attendee_count(meeting)+5`），自动进入印刷话术。
+**材料可 WYSIWYG 编辑**：材料 JSON 存 `meetings.materials`，桌面/Web 可直接编辑后重新生成 PPT。
 
 ## 8. AI 能力（`ai/extract.py`）
 
 | 函数 | 逻辑 |
 |------|------|
-| `extract(texts)` | 判断会议相关 + 提炼要点。有 Key 走 LLM JSON；无 Key 关键词规则 |
-| `extract_rooms(texts)` | 提炼**不可用**会议室。LLM 或规则：`ROOM_RE` 匹配房间名（如 `3F-301`/`2号楼201`/`XXX会议室`），**只向后 18 字符窗口**查 `UNAVAIL_WORDS`（维修/不可用/被占/没空/停用/装修/关闭/取消），按行扫描防跨行污染 |
+| `extract(texts, role=None)` | 判断会议相关 + 提炼要点；可注入角色上下文（如技术科科长）。有 Key 走 LLM JSON；无 Key 关键词规则 |
+| `extract_tasks(texts, role=None)` | 提炼待办任务（标题/截止/详情），同样支持角色聚焦 |
+| `select_sessions(names, focus_names, role, limit)` | 智能采集的会话筛选：**① 优先命中 focus_names 重点对象 ② 其次与 role(技术科) 相关 ③ AI 综合**；无 Key 关键词降级（技术/方案/设备/项目/汇报…） |
+| `extract_rooms(texts)` | 提炼**不可用**会议室。LLM 或规则：`ROOM_RE` 匹配房间名，只向后 18 字符窗口查不可用词，按行扫描防跨行污染 |
 | `extract_attendees(texts)` | 提炼与会人员（LLM；无 Key 返回空走人工） |
-| `generate_materials(title, texts)` | LLM 生成结构化材料 JSON；降级用 extract 要点组单章 |
+| `generate_materials(title, texts, meeting)` | 生成结构化材料 `{cover(标题/时间/地点/发言人/部门), agenda, summary, chapters:[{heading,points,table}], conclusion}`；LLM 输出，无 Key 降级单章 |
 
 ## 9. 话术中心（`automation/phrases.py`）
 
@@ -244,6 +256,11 @@ call_print:       您好，{title}的汇报材料已通过微信发送给您，�
 | GET/PUT | /phone-numbers, /phone-numbers/{code} | 号码配置 |
 | GET/PUT | /settings | 设置项(items+values) / 更新(白名单) |
 | GET | /status | 服务状态 + 数据统计 + 最近日志 |
+| GET | /scan/status, POST /scan/run | 智能采集状态 / 立即采集 |
+| GET | /meetings/{id}/materials, POST/PUT | 材料读取 / AI 生成 / 人工保存 |
+| POST | /meetings/{id}/ppt | 基于材料生成 PPT/md/PDF |
+| GET | /meetings/{id}/files | 会议文件列表 |
+| POST | /meetings/{id}/files/{fid}/send | 发送指定文件给印刷联系人 |
 | GET/POST/DELETE | /rooms | 会议室库 CRUD（空名 400） |
 | GET/PUT | /templates, /templates/{code} | 话术模板 |
 | PUT | /meetings/{id} | 更新会议字段（None 跳过，允许空串清空） |
@@ -309,7 +326,25 @@ Compress-Archive dist\meeting_prep\* build\meeting_prep_pkg.zip
 - **Web**：`/api/tasks` 列表/新增，`/api/tasks/{id}/done|dismiss|reactivate`。
 - **鸿蒙**：App「待办任务」视图（`loadTasks`/`taskDone`，Web 端口 8780）。
 
-## 19. 关键设计决策与坑
+## 19. 智能采集（AI + 模拟操作 + OCR）
+
+`automation/smart_scan.py`，`SmartScanEngine.run_once()` 单轮采集：
+
+```
+定位窗口(GetForegroundWindow 前台/或按应用匹配)
+→ 读会话列表(uia_common.collect_messages，取第一行作会话名)
+→ select_sessions(重点对象优先 → 技术科相关 → AI 综合) 
+→ 逐个模拟点击会话(uiautomation Control.Click)
+→ OCR 消息区(win.BoundingRectangle + msg_top 比例截取 → ocr_region)
+→ 去重入库 + extract/extract_tasks(role 角色聚焦)
+→ 单轮结束；focus_only 仅前台、max_sessions 限轮次、stop() 一键停
+```
+
+- 配置：`scan.enabled/app/interval_seconds/max_sessions/msg_top/focus_only/load_delay/focus_names/role`
+- 入口：桌面「运行状态」页立即采集/停止 + 进度；Web `POST /api/scan/run`、`GET /api/scan/status`
+- 调度：`main.scan_once` 后台线程执行（不阻塞调度器），按 `scan.interval_seconds` 节流
+
+## 20. 关键设计决策与坑
 
 - 端口避开 Windows Hyper-V 保留段（8568-8667），Web 用 8780、手机 8781。
 - 会议室不可用提炼**只向后窗口查**，避免行内前词污染。
