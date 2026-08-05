@@ -248,6 +248,7 @@ class DesktopApp:
         wrap = ttk.Frame(page)
         wrap.pack(fill=tk.BOTH, expand=True, padx=6)
         canvas = tk.Canvas(wrap, highlightthickness=0, bg=PANEL)
+        self.settings_canvas = canvas
         scroll = ttk.Scrollbar(wrap, orient="vertical", command=canvas.yview)
         inner = tk.Frame(canvas, bg=PANEL)
         inner.bind("<Configure>",
@@ -257,27 +258,38 @@ class DesktopApp:
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
+        def _wheel(e):
+            canvas.yview_scroll(int(-e.delta / 120), "units")
+
+        canvas.bind("<MouseWheel>", _wheel)
+        inner.bind("<MouseWheel>", _wheel)
+
         row = 0
         for it in settings_center.items():
             key = it["key"]
             desc = it.get("description", "")
-            tk.Label(inner, text=it["label"], bg=PANEL, fg=INK,
-                     font=("Microsoft YaHei UI", 9, "bold"), anchor="w",
-                     justify="left").grid(row=row, column=0, padx=6, pady=(3, 0),
-                                          sticky="w")
+            lbl = tk.Label(inner, text=it["label"], bg=PANEL, fg=INK,
+                           font=("Microsoft YaHei UI", 9, "bold"), anchor="w",
+                           justify="left")
+            lbl.grid(row=row, column=0, padx=6, pady=(3, 0), sticky="w")
+            lbl.bind("<MouseWheel>", _wheel)
             if desc:
-                tk.Label(inner, text=desc, bg=PANEL, fg=MUTED, anchor="w",
-                         justify="left", wraplength=300,
-                         font=("Microsoft YaHei UI", 8)).grid(
-                    row=row, column=0, padx=6, sticky="w", pady=(0, 3))
+                dl = tk.Label(inner, text=desc, bg=PANEL, fg=MUTED, anchor="w",
+                              justify="left", wraplength=300,
+                              font=("Microsoft YaHei UI", 8))
+                dl.grid(row=row, column=0, padx=6, sticky="w", pady=(0, 3))
+                dl.bind("<MouseWheel>", _wheel)
             if it["type"] == "bool":
                 var = tk.BooleanVar(value=bool(values.get(key)))
-                ttk.Checkbutton(inner, variable=var).grid(row=row, column=1, padx=6)
+                cb = ttk.Checkbutton(inner, variable=var)
+                cb.grid(row=row, column=1, padx=6)
+                cb.bind("<MouseWheel>", _wheel)
             else:
                 var = tk.StringVar(value="" if values.get(key) is None
                                    else str(values.get(key)))
                 ent = ttk.Entry(inner, textvariable=var, width=40)
                 ent.grid(row=row, column=1, padx=6)
+                ent.bind("<MouseWheel>", _wheel)
                 if it["type"] == "password":
                     ent.configure(show="*")
             self.settings_vars[key] = (var, it["type"])

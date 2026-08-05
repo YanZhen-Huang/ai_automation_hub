@@ -62,16 +62,19 @@ class LiveWindow:
     def _build_header(self):
         bar = tk.Frame(self.win, bg=BG)
         bar.pack(side=tk.TOP, fill=tk.X)
-        tk.Label(bar, text="▲", bg=BG, fg=CYAN,
-                 font=("Microsoft YaHei UI", 10)).pack(side=tk.LEFT, padx=(10, 0), pady=6)
-        tk.Label(bar, text="待办任务", bg=BG, fg=INK,
-                 font=("Microsoft YaHei UI", 12, "bold")).pack(side=tk.LEFT, padx=(4, 0))
+        mark = tk.Label(bar, text="▲", bg=BG, fg=CYAN,
+                        font=("Microsoft YaHei UI", 10))
+        mark.pack(side=tk.LEFT, padx=(10, 0), pady=6)
+        title = tk.Label(bar, text="待办任务", bg=BG, fg=INK,
+                         font=("Microsoft YaHei UI", 12, "bold"))
+        title.pack(side=tk.LEFT, padx=(4, 0))
         btn = tk.Label(bar, text="✕", bg=BG, fg=MUTED,
                        font=("Microsoft YaHei UI", 11), cursor="hand2")
         btn.pack(side=tk.RIGHT, padx=(0, 8))
+        # ✕ 只负责隐藏；不参与拖拽（<Button-1> 与 <ButtonPress-1> 同一事件序列会互相覆盖）
         btn.bind("<Button-1>", lambda e: self.hide())
 
-        for widget in (bar, btn):
+        for widget in (bar, mark, title):
             widget.bind("<ButtonPress-1>", self._start_drag)
             widget.bind("<B1-Motion>", self._on_drag)
 
