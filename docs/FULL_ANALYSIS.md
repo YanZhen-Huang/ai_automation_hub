@@ -42,8 +42,9 @@ ai_automation_hub/
 │   ├── base.py                   # Collector 基类 + 注册表 + collect_all()
 │   ├── manual.py                 # 手动输入：submit_manual(text) 入库+发事件
 │   ├── speech.py                 # 录音转文字：faster-whisper 懒加载+转写+入库
+│   ├── uia_common.py             # 公共 UIA 层（窗口匹配 + 控件树遍历）
 │   ├── ocr.py                    # OCR：ImageGrab 截屏 + RapidOCR 识别指定区域
-│   └── im/wechat.py              # 微信 UIA 会话采集
+│   └── im/                       # wechat/dingtalk/feishu/onenote UIA 会话采集
 ├── ai/
 │   ├── llm.py                    # LLM 客户端(OpenAI 兼容/DeepSeek)，timeout=60
 │   └── extract.py                # 提炼：extract/extract_rooms/extract_attendees/generate_materials
@@ -52,7 +53,8 @@ ai_automation_hub/
 │   ├── actions.py                # 动作库 + 微信 UIA 发文本/文件 + 文件名清洗
 │   ├── phrases.py                # 话术中心：模板+变量填充+AI 润色
 │   └── phone_link.py             # 桌面端手机联动 HTTP 服务（任务队列+token+超时重投递）
-├── desktop/app.py                # tkinter 主窗口（6 页签 + 事件队列线程安全）
+├── desktop/app.py                # tkinter 主窗口（7 页签 + 事件队列线程安全）
+├── desktop/live_window.py        # 待办任务实况窗（右侧置顶卡片，整合自 desk）
 ├── server/
 │   ├── app.py                    # FastAPI app + 静态前端挂载(frozen 路径适配)
 │   ├── api/routes.py             # 全部 REST API
@@ -93,6 +95,8 @@ id PK, title, start_time, status(preparing/prepared/cancelled), room(选定会�
 **action_logs**：id, item_id, action, status, message, created_at。
 
 **phone_numbers**：code PK, number, updated_at（6 个打电话动作的目标号码）。
+
+**tasks（待办任务，整合自 desk_task_board）**：id PK, title, detail, due_date, source(ai/manual), status(active/dismissed/done), info_id(关联信息), created_at, updated_at。
 
 ## 5. 配置系统
 
@@ -284,17 +288,28 @@ Compress-Archive dist\meeting_prep\* build\meeting_prep_pkg.zip
 1. 按 §3 建目录，按 §16 建 venv 装依赖
 2. 实现 core/（config/settings/events/scheduler/logger/status）
 3. 实现 storage/db.py（§4 全部表 + CRUD）
-4. 实现 collectors/（§8 用到：base/manual/speech/ocr/im.wechat）
+4. 实现 collectors/（§8 用到：base/uia_common/manual/speech/ocr/im.*）
 5. 实现 ai/（llm + extract，§8）
 6. 实现 automation/（actions/phrases/workflows/phone_link，§7-11）
 7. 实现 server/（app + routes，§12；frontend §14）
-8. 实现 desktop/（§13）
-9. 实现 main.py（§6 启动编排）
-10. 测试：`main.py` 启动 → 桌面窗口 + Web 8780 + 手机 8781；创建会议 → 12 动作项待审批 → 选会议室/定人员 → 手机回传 → 串行推进
+8. 实现 desktop/（§13，含 live_window 实况窗）
+9. 实现 main.py（§6 启动编排，含实况窗启动）
+10. 测试：`main.py` 启动 → 桌面窗口 + 实况窗 + Web 8780 + 手机 8781；创建会议 → 12 动作项待审批 → 选会议室/定人员 → 手机回传 → 串行推进
 11. 打包分发（§16）
 12. 鸿蒙端（§15）真机联调
 
-## 18. 关键设计决策与坑
+## 18. 待办任务模块（整合自 desk_task_board）
+
+- **tasks 表**：title/detail/due_date/source/status(active/dismissed/done)/info_id。
+- **提炼**：`ai/extract.extract_tasks(texts)`（AI 或规则）→ 标题/截止/详情；`_find_date` 从句中提取"今天/明天/周X/X月X日"等解析。
+- **信息库互享**：采集管线对新信息同时做 `extract`（会议要点）与 `extract_tasks`（待办任务）双产物。
+- **去重**：`db.add_task_unique(title, due_date)`（未完成同标题+截止跳过）。
+- **实况窗**：`desktop/live_window.py` 右侧置顶卡片；active + dismissed到期显示；未到期点击=dismiss，到期点击=done；`task.new`/`info.new` 事件经 queue 驱动刷新。
+- **桌面页签**：主窗口「待办任务」（完成/忽略/恢复/删除/双击完成）。
+- **Web**：`/api/tasks` 列表/新增，`/api/tasks/{id}/done|dismiss|reactivate`。
+- **鸿蒙**：App「待办任务」视图（`loadTasks`/`taskDone`，Web 端口 8780）。
+
+## 19. 关键设计决策与坑
 
 - 端口避开 Windows Hyper-V 保留段（8568-8667），Web 用 8780、手机 8781。
 - 会议室不可用提炼**只向后窗口查**，避免行内前词污染。
@@ -303,3 +318,4 @@ Compress-Archive dist\meeting_prep\* build\meeting_prep_pkg.zip
 - 所有失败回 `waiting` 可重试，不永久卡 `running`。
 - 设置项**白名单**，防 Web 端写入任意配置键。
 - 手机接口 **token 鉴权**，防局域网窃取任务。
+- 任务提炼规则：**强任务词单命中即可**（汇报/提交/记得/截止…），日期解析先**提取句中日期片段**再解析。
