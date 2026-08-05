@@ -31,7 +31,9 @@ class DesktopApp:
         self.root = root
         self.root.title("会议准备自动化工作台")
         self.root.geometry("960x640")
+        self.root.minsize(900, 540)
         self.current_id = None
+        self._detail_gen = 0
         self._uiq = queue.Queue()
         self._approval_notice_at = 0
         self._build_ui()
@@ -652,6 +654,9 @@ class DesktopApp:
                                       f"({meeting['start_time'] or '时间未定'})")
         for w in self.detail_items.winfo_children():
             w.destroy()
+        # 取消上一轮未执行的滑入动画回调，防止控件堆积导致布局抖动
+        self._detail_gen += 1
+        gen = self._detail_gen
         plan = []
         for phase, label in ((1, "一阶段（并行）"), (2, "二阶段（串行）")):
             plan.append(("label", label))
@@ -660,9 +665,12 @@ class DesktopApp:
                     plan.append(("row", it))
         for i, (kind, data) in enumerate(plan):
             self.detail_items.after(i * 45,
-                                    lambda k=kind, d=data: self._add_detail(k, d))
+                                    lambda k=kind, d=data, g=gen:
+                                    self._add_detail(k, d, g))
 
-    def _add_detail(self, kind, data):
+    def _add_detail(self, kind, data, gen=None):
+        if gen is not None and gen != self._detail_gen:
+            return
         if kind == "label":
             ttk.Label(self.detail_items, text=data,
                       font=("Microsoft YaHei UI", 10, "bold"),
