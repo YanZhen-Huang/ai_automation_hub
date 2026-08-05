@@ -4,6 +4,15 @@ import re
 from datetime import datetime, timedelta
 
 
+def _valid_date(year, month, day):
+    """构造合法日期，非法（如 2025-13-99）返回 None。"""
+    try:
+        dt = datetime(year, month, day)
+    except ValueError:
+        return None
+    return dt.strftime("%Y-%m-%d")
+
+
 def parse_date(raw):
     """解析日期文本 → YYYY-MM-DD，无法解析返回 None。"""
     if not raw:
@@ -21,18 +30,24 @@ def parse_date(raw):
                 "星期一": 0, "星期二": 1, "星期三": 2, "星期四": 3, "星期五": 4,
                 "星期六": 5, "星期日": 6, "星期天": 6}
     for name, target in weekdays.items():
-        if name in s:
-            diff = (target - now.weekday()) % 7
-            if diff == 0:
-                diff = 7
-            return (now + timedelta(days=diff)).strftime("%Y-%m-%d")
+        idx = s.find(name)
+        if idx < 0:
+            continue
+        prefix = s[:idx]
+        if prefix.endswith("上"):
+            diff = now.weekday() - target + 7
+            return (now - timedelta(days=diff)).strftime("%Y-%m-%d")
+        diff = (target - now.weekday()) % 7
+        if diff == 0:
+            diff = 7
+        return (now + timedelta(days=diff)).strftime("%Y-%m-%d")
 
     m = re.search(r"(\d{4})[年\-/\.](\d{1,2})[月\-/\.](\d{1,2})", s)
     if m:
-        return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+        return _valid_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
     m = re.search(r"(\d{1,2})[月\-/\.](\d{1,2})", s)
     if m:
-        return f"{now.year:04d}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
+        return _valid_date(now.year, int(m.group(1)), int(m.group(2)))
     return None
 
 
