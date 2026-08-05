@@ -217,6 +217,24 @@ li:last-child { border-bottom:0; }
     </div>
 
     <div class="card" style="animation-delay:.25s">
+      <h2>待办任务</h2>
+      <div style="display:flex;gap:6px">
+        <input v-model="newTaskTitle" placeholder="新任务标题">
+        <input v-model="newTaskDue" placeholder="截止(可空) 如 2026-08-10" style="width:140px">
+        <button @click="addTask">添加</button>
+      </div>
+      <div class="mlist"><ul>
+        <li v-for="t in tasks" :key="t.id">
+          <span class="status" :class="t.status==='active'?'st-running':(t.status==='done'?'st-done':'st-pending')">
+            [{{ t.status }}]</span> {{ t.title }}
+          <span v-if="t.due_date" style="color:var(--muted)">截止 {{ t.due_date }}</span>
+          <button class="ghost" v-if="t.status!=='done'" @click="taskDone(t.id)">完成</button>
+        </li>
+        <li v-if="!tasks.length" class="empty">暂无任务</li>
+      </ul></div>
+    </div>
+
+    <div class="card" style="animation-delay:.25s">
       <h2>运行状态</h2>
       <div v-if="status">
         <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -288,14 +306,14 @@ createApp({
     return { meetings: [], current: null, infos: [], logs: [], settings: { items: [], values: {} },
              rooms: [], newRoom: '', numbers: [], numberLabels: {},
              templates: [], tplCode: 'call_room', tplText: '', tplAI: false,
-             status: null,
+             status: null, tasks: [], newTaskTitle: '', newTaskDue: '',
              newTitle: '', newTime: '', manualText: '' };
   },
   mounted() {
     this.reload();
     this.loadSettings();
     this.loadRooms(); this.loadNumbers(); this.loadTemplates();
-    this.loadStatus();
+    this.loadStatus(); this.loadTasks();
     setInterval(() => this.autoRefresh(), 5000);
   },
   methods: {
@@ -312,13 +330,26 @@ createApp({
       this.infos = await this.api('/api/info');
       this.logs = await this.api('/api/logs');
       this.meetings = await this.api('/api/meetings');
-      this.loadStatus();
+      this.loadStatus(); this.loadTasks();
       if (this.current) {
         this.current = await this.api('/api/meetings/' + this.current.meeting.id);
       }
     },
     async loadStatus() {
       try { this.status = await this.api('/api/status'); } catch (e) {}
+    },
+    async loadTasks() { this.tasks = await this.api('/api/tasks'); },
+    async addTask() {
+      if (!this.newTaskTitle.trim()) return;
+      await this.api('/api/tasks', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ title: this.newTaskTitle, due_date: this.newTaskDue })
+      });
+      this.newTaskTitle=''; this.newTaskDue=''; await this.loadTasks();
+    },
+    async taskDone(id) {
+      await this.api('/api/tasks/' + id + '/done', { method: 'POST' });
+      await this.loadTasks();
     },
     async loadSettings() {
       this.settings = await this.api('/api/settings');

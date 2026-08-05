@@ -45,6 +45,7 @@ class DesktopApp:
         nb.pack(fill=tk.BOTH, expand=True)
 
         self._build_meeting_page(nb)
+        self._build_tasks_page(nb)
         self._build_info_page(nb)
         self._build_phone_page(nb)
         self._build_settings_page(nb)
@@ -130,6 +131,70 @@ class DesktopApp:
         self.detail_title.pack(anchor="w", padx=6, pady=(6, 2))
         self.detail_items = tk.Frame(self.detail, bg=PANEL)
         self.detail_items.pack(fill=tk.BOTH, expand=True, padx=6, pady=4)
+
+    def _build_tasks_page(self, nb):
+        page = ttk.Frame(nb)
+        nb.add(page, text="待办任务")
+        toolbar = ttk.Frame(page)
+        toolbar.pack(fill=tk.X, padx=6, pady=4)
+        ttk.Button(toolbar, text="刷新", command=self.refresh_tasks).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="完成", command=self._task_done).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="忽略", command=self._task_dismiss).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="恢复", command=self._task_reactivate).pack(side=tk.LEFT, padx=2)
+        ttk.Button(toolbar, text="删除", command=self._task_remove).pack(side=tk.LEFT, padx=2)
+        ttk.Label(toolbar, text="双击 = 完成", foreground=MUTED).pack(side=tk.LEFT, padx=8)
+        self.task_tree = ttk.Treeview(page, columns=("title", "due", "status", "source"),
+                                      show="headings", height=10)
+        for col, w, hd in (("title", 220, "任务"), ("due", 110, "截止"),
+                           ("status", 70, "状态"), ("source", 90, "来源")):
+            self.task_tree.heading(col, text=hd)
+            self.task_tree.column(col, width=w, anchor="w")
+        self.task_tree.pack(fill=tk.BOTH, expand=True, padx=6, pady=4)
+        self.task_tree.bind("<Double-1>", self._task_double)
+        self.refresh_tasks()
+
+    def refresh_tasks(self):
+        self.task_tree.delete(*self.task_tree.get_children())
+        for t in db.list_tasks(limit=100):
+            self.task_tree.insert("", "end", iid=str(t["id"]),
+                                  values=(t["title"], t["due_date"] or "",
+                                          t["status"], t["source"]))
+
+    def _task_selected(self):
+        sel = self.task_tree.selection()
+        if not sel:
+            return None
+        return int(sel[0])
+
+    def _task_done(self):
+        tid = self._task_selected()
+        if tid:
+            db.update_task(tid, status=db.TASK_DONE)
+            self.refresh_tasks()
+
+    def _task_dismiss(self):
+        tid = self._task_selected()
+        if tid:
+            db.update_task(tid, status=db.TASK_DISMISSED)
+            self.refresh_tasks()
+
+    def _task_reactivate(self):
+        tid = self._task_selected()
+        if tid:
+            db.update_task(tid, status=db.TASK_ACTIVE)
+            self.refresh_tasks()
+
+    def _task_remove(self):
+        tid = self._task_selected()
+        if tid and messagebox.askyesno("确认", "删除该任务？"):
+            db.remove_task(tid)
+            self.refresh_tasks()
+
+    def _task_double(self, event):
+        tid = self._task_selected()
+        if tid:
+            db.update_task(tid, status=db.TASK_DONE)
+            self.refresh_tasks()
 
     def _build_info_page(self, nb):
         page = ttk.Frame(nb)
@@ -509,6 +574,7 @@ class DesktopApp:
     def _on_event(self):
         try:
             self.refresh_meetings()
+            self.refresh_tasks()
             self.refresh_infos()
             self.refresh_logs()
         except Exception:

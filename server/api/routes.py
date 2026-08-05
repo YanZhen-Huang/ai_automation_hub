@@ -211,3 +211,40 @@ def set_attendees(meeting_id: int, payload: AttendeesIn):
 @router.get("/meetings/{meeting_id}/room-candidates")
 def room_candidates(meeting_id: int):
     return {"candidates": workflows.candidates_for_room(meeting_id)}
+
+
+class TaskIn(BaseModel):
+    title: str
+    detail: str = ""
+    due_date: str = ""
+
+
+@router.get("/tasks")
+def list_tasks(status: str | None = None):
+    return db.list_tasks(status=status)
+
+
+@router.post("/tasks")
+def add_task(payload: TaskIn):
+    if not payload.title.strip():
+        raise HTTPException(400, "任务标题不能为空")
+    return {"id": db.add_task(payload.title.strip(), payload.detail,
+                              payload.due_date or None, source="manual")}
+
+
+@router.post("/tasks/{task_id}/done")
+def task_done(task_id: int):
+    db.update_task(task_id, status=db.TASK_DONE)
+    return {"ok": True}
+
+
+@router.post("/tasks/{task_id}/dismiss")
+def task_dismiss(task_id: int):
+    db.update_task(task_id, status=db.TASK_DISMISSED)
+    return {"ok": True}
+
+
+@router.post("/tasks/{task_id}/reactivate")
+def task_reactivate(task_id: int):
+    db.update_task(task_id, status=db.TASK_ACTIVE)
+    return {"ok": True}

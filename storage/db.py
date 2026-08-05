@@ -65,6 +65,17 @@ CREATE TABLE IF NOT EXISTS phone_numbers (
     number TEXT NOT NULL DEFAULT '',
     updated_at TEXT
 );
+CREATE TABLE IF NOT EXISTS tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    detail TEXT DEFAULT '',
+    due_date TEXT,
+    source TEXT DEFAULT 'ai',
+    status TEXT DEFAULT 'active',
+    info_id INTEGER,
+    created_at TEXT,
+    updated_at TEXT
+);
 """
 
 
@@ -371,6 +382,107 @@ def all_templates():
     try:
         rows = conn.execute(
             "SELECT * FROM phrase_templates ORDER BY code").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+# ---------- 待办任务 ----------
+
+TASK_ACTIVE, TASK_DISMISSED, TASK_DONE = "active", "dismissed", "done"
+
+
+def add_task(title, detail="", due_date=None, source="ai", info_id=None):
+    conn = get_conn()
+    try:
+        cur = conn.execute(
+            "INSERT INTO tasks (title, detail, due_date, source, status, info_id, "
+            "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+            (title, detail, due_date, source, TASK_ACTIVE, info_id, _now(), _now()))
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def add_task_unique(title, detail="", due_date=None, source="ai", info_id=None):
+    """去重入库：未完成的同标题+截止任务跳过。返回 (id, is_new)。"""
+    conn = get_conn()
+    try:
+        r = conn.execute(
+            "SELECT id FROM tasks WHERE status != 'done' AND title = ? AND "
+            "IFNULL(due_date,'') = IFNULL(?,'') LIMIT 1",
+            (title, due_date)).fetchone()
+        if r:
+            return r["id"], False
+        cur = conn.execute(
+            "INSERT INTO tasks (title, detail, due_date, source, status, info_id, "
+            "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+            (title, detail, due_date, source, TASK_ACTIVE, info_id, _now(), _now()))
+        conn.commit()
+        return cur.lastrowid, True
+    finally:
+        conn.close()
+
+
+def list_tasks(status=None, limit=200):
+    conn = get_conn()
+    try:
+        sql = "SELECT * FROM tasks"
+        args = []
+        if status:
+            sql += " WHERE status = ?"
+            args.append(status)
+        sql += " ORDER BY id DESC LIMIT ?"
+        args.append(limit)
+        rows = conn.execute(sql, args).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_task(task_id):
+    conn = get_conn()
+    try:
+        r = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        return dict(r) if r else None
+    finally:
+        conn.close()
+
+
+def update_task(task_id, status=None, due_date=None):
+    conn = get_conn()
+    try:
+        sets, args = ["updated_at = ?"], [_now()]
+        if status is not None:
+            sets.append("status = ?")
+            args.append(status)
+        if due_date is not None:
+            sets.append("due_date = ?")
+            args.append(due_date)
+        args.append(task_id)
+        conn.execute(f"UPDATE tasks SET {', '.join(sets)} WHERE id = ?", args)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def remove_task(task_id):
+    conn = get_conn()
+    try:
+        conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def due_tasks():
+    """未完成且到期的任务（用于实况窗提醒）。"""
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM tasks WHERE status != 'done' AND due_date IS NOT NULL "
+            "AND due_date != ''").fetchall()
         return [dict(r) for r in rows]
     finally:
         conn.close()

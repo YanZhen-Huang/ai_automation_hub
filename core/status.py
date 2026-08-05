@@ -58,6 +58,7 @@ def service_status():
             "meetings": _count("meetings"),
             "prep_items": _count("prep_items"),
             "rooms": _count("rooms"),
+            "tasks": _count("tasks"),
             "action_logs": _count("action_logs"),
         },
         "time": time.strftime("%Y-%m-%d %H:%M:%S"),

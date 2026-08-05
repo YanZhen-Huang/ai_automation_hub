@@ -156,3 +156,113 @@ def generate_materials(title, texts):
     res = _rule_extract(texts)
     return {"summary": res.get("summary", ""),
             "chapters": [{"heading": "要点", "points": res.get("points", [])}]}
+
+
+# ── 待办任务提炼（desk_task_board 能力并入） ──
+
+from datetime import datetime, timedelta  # noqa: E402
+
+TASK_PROMPT = """你是办公任务分类助手。判断每条消息是否属于"办公任务"（需要用户去完成/跟进/汇报的工作事项）。
+判断标准：
+1. 明确要求汇报、提交、跟进、开会、交材料、写文档等 → 是办公任务
+2. 仅闲聊、通知新闻、广告、寒暄、无行动要求 → 不是办公任务
+3. 提醒类（如"记得xx"、"别忘xx"）→ 是办公任务
+
+对每条属于办公任务的消息输出 JSON 数组，每项字段：
+- title: 简短任务标题（<=15字）
+- due_date: 汇报/截止日期，支持"今天/明天/X月X日/XXXX年X月X日/周五"等，统一为"YYYY-MM-DD"，无明确日期填 null
+- detail: 一句话任务详情
+
+只输出 JSON 数组。"""
+
+
+def _parse_date(raw):
+    if not raw:
+        return None
+    s = str(raw).strip()
+    now = datetime.now()
+    if s == "今天":
+        return now.strftime("%Y-%m-%d")
+    if s == "明天":
+        return (now + timedelta(days=1)).strftime("%Y-%m-%d")
+    if s == "后天":
+        return (now + timedelta(days=2)).strftime("%Y-%m-%d")
+
+    weekdays = {"周一": 0, "周二": 1, "周三": 2, "周四": 3, "周五": 4, "周六": 5, "周日": 6,
+                "星期一": 0, "星期二": 1, "星期三": 2, "星期四": 3, "星期五": 4,
+                "星期六": 5, "星期日": 6, "星期天": 6}
+    for name, target in weekdays.items():
+        if name in s:
+            diff = (target - now.weekday()) % 7
+            if diff == 0:
+                diff = 7
+            return (now + timedelta(days=diff)).strftime("%Y-%m-%d")
+
+    m = re.search(r"(\d{4})[年\-/\.](\d{1,2})[月\-/\.](\d{1,2})", s)
+    if m:
+        return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
+    m = re.search(r"(\d{1,2})[月\-/\.](\d{1,2})", s)
+    if m:
+        return f"{now.year:04d}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
+    return None
+
+
+TASK_KEYWORDS = ["汇报", "提交", "跟进", "开会", "会议", "交材料", "写文档", "写报告",
+                 "准备", "整理", "审批", "待办", "记得", "别忘了", "务必", "尽快",
+                 "截止", "到期", "今天", "明天", "后天", "下周", "下周", "礼拜",
+                 "周一", "周二", "周三", "周四", "周五", "周六", "周日", "月", "日"]
+TASK_STRONG = ["汇报", "提交", "跟进", "开会", "会议", "交材料", "写文档", "写报告",
+               "记得", "别忘了", "务必", "尽快", "截止", "到期"]
+
+
+def _find_date(text):
+    """从句子中提取日期关键词并解析为 YYYY-MM-DD。"""
+    m = re.search(
+        r"(今天|明天|后天|下周[一二三四五六日天]?|周[一二三四五六日天]|"
+        r"星期[一二三四五六日天]|\d{1,2}月\d{1,2}日|\d{4}年\d{1,2}月\d{1,2}日)",
+        text)
+    if m:
+        return _parse_date(m.group(0))
+    return None
+
+
+def _rule_tasks(texts):
+    out = []
+    for msg in texts or []:
+        text = msg if isinstance(msg, str) else str(msg)
+        hit = sum(1 for kw in TASK_KEYWORDS if kw in text)
+        if hit < 2 and not any(k in text for k in TASK_STRONG):
+            continue
+        title = re.sub(r"[\[\]【】\s]+", "", text)[:15] or "待办"
+        due = _find_date(text)
+        out.append({"title": title, "due_date": due, "detail": text})
+    return out
+
+
+def extract_tasks(texts):
+    """从信息中提炼待办任务。返回 list[{title, due_date, detail}]。"""
+    if not texts:
+        return []
+    if not llm.available():
+        return _rule_tasks(texts)
+    try:
+        resp = llm.chat([
+            {"role": "system", "content": TASK_PROMPT},
+            {"role": "user", "content": json.dumps(texts, ensure_ascii=False)},
+        ], temperature=0.1, max_tokens=1500)
+        m = re.search(r"\[.*\]", resp, re.S)
+        data = json.loads(m.group(0)) if m else []
+        out = []
+        for it in data:
+            if not it.get("task", True):
+                continue
+            title = str(it.get("title") or "").strip()[:20]
+            if not title:
+                continue
+            out.append({"title": title,
+                        "due_date": _parse_date(it.get("due_date")),
+                        "detail": str(it.get("detail") or "")[:100] or title})
+        return out
+    except Exception:
+        log.exception("AI 任务提炼失败，降级规则")
+        return _rule_tasks(texts)

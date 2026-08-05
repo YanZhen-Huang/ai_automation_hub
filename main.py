@@ -46,17 +46,28 @@ def ingest(msgs):
 
 
 def _collect_work():
-    """多源采集 → 去重入库 → AI 提炼（会议相关则通知）。"""
+    """多源采集 → 去重入库 → AI 提炼（会议要点 + 待办任务，信息库互享）。"""
     new = ingest(collect_all())
     if not new:
         return
-    res = extract([m["content"] for m in new])
+    texts = [m["content"] for m in new]
+    res = extract(texts)
     if res.get("is_meeting_related"):
         bus().publish("notification",
                       {"title": "检测到会议相关信息",
                        "message": res.get("summary") or "已入库，可创建会议准备"})
+    # 共享信息库：同批信息同时提炼待办任务
+    from ai.extract import extract_tasks
+    added = 0
+    for t in extract_tasks(texts):
+        _, is_new = db.add_task_unique(t["title"], t["detail"], t["due_date"])
+        if is_new:
+            added += 1
     bus().publish("info.new", {"count": len(new)})
-    log.info("采集 %d 条，会议相关: %s", len(new), res.get("is_meeting_related"))
+    if added:
+        bus().publish("task.new", {"count": added})
+    log.info("采集 %d 条，会议相关: %s，提炼任务 %d 条",
+             len(new), res.get("is_meeting_related"), added)
 
 
 def collect_once():
@@ -131,6 +142,14 @@ def main():
     scheduler().start()
 
     events = _queue.Queue()
+    live = None
+
+    def refresh_live(_=None):
+        if live is not None:
+            events.put("live_refresh")
+
+    bus().subscribe("task.new", refresh_live)
+    bus().subscribe("info.new", refresh_live)
 
     def drain_events():
         while True:
@@ -141,12 +160,18 @@ def main():
                     root.lift()
                 elif ev == "quit":
                     root.destroy()
+                elif ev == "live_refresh":
+                    if live is not None:
+                        live.refresh()
             except _queue.Empty:
                 break
         root.after(300, drain_events)
 
     root = tk.Tk()
     app = DesktopApp(root)
+    if CONFIG.get("desktop", {}).get("live_enabled", True):
+        from desktop.live_window import LiveWindow
+        live = LiveWindow(root=root)
     root.protocol("WM_DELETE_WINDOW", lambda: (root.withdraw(),))
     setup_tray(root, events)
     drain_events()

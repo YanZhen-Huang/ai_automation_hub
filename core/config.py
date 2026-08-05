@@ -31,6 +31,9 @@ DEFAULTS = {
     "collect": {
         "interval_seconds": int(os.environ.get("COLLECT_INTERVAL", "300")),
         "wechat_enabled": True,
+        "dingtalk_enabled": False,
+        "feishu_enabled": False,
+        "onenote_enabled": False,
         "manual_enabled": True,
         "speech_enabled": True,
         "ocr_enabled": True,
