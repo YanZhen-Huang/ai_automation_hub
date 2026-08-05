@@ -1,3 +1,4 @@
+import json
 import queue
 import threading
 import time
@@ -5,9 +6,10 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 from ai.extract import extract_attendees
-from automation import phrases, workflows
+from automation import actions, phrases, workflows
 from collectors import submit_manual
 from core import settings as settings_center
+from core.config import CONFIG
 from core.events import bus
 from storage import db
 
@@ -129,9 +131,14 @@ class DesktopApp:
         self._build_detail_widgets()
 
     def _build_detail_widgets(self):
-        self.detail_title = ttk.Label(self.detail, text="",
+        bar = ttk.Frame(self.detail)
+        bar.pack(fill=tk.X, padx=6, pady=(6, 2))
+        self.detail_title = ttk.Label(bar, text="",
                                       font=("Microsoft YaHei UI", 12, "bold"))
-        self.detail_title.pack(anchor="w", padx=6, pady=(6, 2))
+        self.detail_title.pack(side=tk.LEFT)
+        ttk.Button(bar, text="材料/文件",
+                   command=lambda: self._open_materials(self.current_id)
+                   ).pack(side=tk.RIGHT)
         self.detail_items = tk.Frame(self.detail, bg=PANEL)
         self.detail_items.pack(fill=tk.BOTH, expand=True, padx=6, pady=4)
 
@@ -752,6 +759,14 @@ class DesktopApp:
         tk.Label(dlg, text="印刷/材料送达地点，如：总部一楼前台",
                  bg=BG, fg=MUTED, font=("Microsoft YaHei UI", 8)).grid(
             row=4, column=1, padx=6, sticky="w")
+        auto_v = tk.BooleanVar(value=True)
+        tk.Checkbutton(dlg, text="AI 自动生成材料并发送印刷", variable=auto_v,
+                       bg=BG, fg=INK, activebackground=BG, activeforeground=INK,
+                       selectcolor=BG, highlightthickness=0, bd=0).grid(
+            row=5, column=0, columnspan=2, padx=6, pady=4, sticky="w")
+        tk.Label(dlg, text="（关闭后由人工在「材料/文件」区生成与发送）",
+                 bg=BG, fg=MUTED, font=("Microsoft YaHei UI", 8)).grid(
+            row=6, column=1, padx=6, sticky="w")
 
         def ok():
             title = title_v.get().strip()
@@ -777,12 +792,111 @@ class DesktopApp:
             loc = loc_v.get().strip()
             if loc:
                 db.update_meeting(mid, location=loc)
+            db.update_meeting(mid, auto_materials=1 if auto_v.get() else 0)
             workflows.run_phase1(mid)
             dlg.destroy()
             self.refresh_meetings()
 
         ttk.Button(dlg, text="创建并开始准备", command=ok).grid(
             row=5, column=0, columnspan=2, pady=8)
+
+    # ---------- 材料与文件 ----------
+
+    def _open_materials(self, meeting_id):
+        if not meeting_id:
+            return
+        dlg = tk.Toplevel(self.root)
+        dlg.title("材料与文件")
+        dlg.configure(bg=BG)
+        dlg.geometry("680x560")
+        self._materials_dlg = dlg
+
+        ttk.Label(dlg, text="材料 JSON（AI 生成后可自由编辑）",
+                  font=("Microsoft YaHei UI", 10, "bold"),
+                  foreground=CYAN).pack(anchor="w", padx=8, pady=(8, 2))
+        self.mat_text = tk.Text(dlg, height=12, bg=PANEL, fg=INK, relief="flat",
+                                insertbackground=INK, highlightthickness=1,
+                                highlightbackground=LINE)
+        self.mat_text.pack(fill=tk.BOTH, expand=True, padx=8)
+
+        bar = ttk.Frame(dlg)
+        bar.pack(fill=tk.X, padx=8, pady=4)
+        ttk.Button(bar, text="AI 生成材料",
+                   command=lambda: self._mat_gen(meeting_id)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(bar, text="保存材料",
+                   command=lambda: self._mat_save(meeting_id)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(bar, text="生成 PPT/PDF",
+                   command=lambda: self._gen_ppt(meeting_id)).pack(side=tk.LEFT, padx=2)
+
+        ttk.Label(dlg, text="已生成文件（可指定发送）",
+                  font=("Microsoft YaHei UI", 10, "bold"),
+                  foreground=CYAN).pack(anchor="w", padx=8, pady=(6, 2))
+        self.files_lb = tk.Listbox(dlg, bg=PANEL, fg=INK, relief="flat", height=6,
+                                   highlightthickness=1, highlightbackground=LINE)
+        self.files_lb.pack(fill=tk.X, padx=8, pady=4)
+        fbar = ttk.Frame(dlg)
+        fbar.pack(fill=tk.X, padx=8, pady=4)
+        ttk.Button(fbar, text="发送所选文件",
+                   command=lambda: self._file_send(meeting_id)).pack(side=tk.LEFT, padx=2)
+        ttk.Button(fbar, text="刷新",
+                   command=lambda: self._files_reload(meeting_id)).pack(side=tk.LEFT, padx=2)
+
+        self._load_materials(meeting_id)
+        self._files_reload(meeting_id)
+
+    def _load_materials(self, meeting_id):
+        m = workflows.get_materials(meeting_id)
+        self.mat_text.delete("1.0", "end")
+        if m:
+            self.mat_text.insert("1.0", json.dumps(m, ensure_ascii=False, indent=2))
+
+    def _mat_gen(self, meeting_id):
+        workflows.gen_materials(meeting_id)
+        self._load_materials(meeting_id)
+        messagebox.showinfo("AI 生成", "材料已生成，可编辑后保存")
+
+    def _mat_save(self, meeting_id):
+        text = self.mat_text.get("1.0", "end").strip()
+        try:
+            json.loads(text)
+        except Exception:
+            messagebox.showwarning("提示", "材料 JSON 格式不正确")
+            return
+        db.update_meeting(meeting_id, materials=text)
+        messagebox.showinfo("提示", "材料已保存")
+
+    def _gen_ppt(self, meeting_id):
+        try:
+            workflows.gen_files(meeting_id)
+            self._files_reload(meeting_id)
+            messagebox.showinfo("生成", "PPT/文档已生成")
+        except Exception:
+            messagebox.showerror("生成失败", "请先保存有效的材料 JSON")
+
+    def _files_reload(self, meeting_id):
+        self.files_lb.delete(0, "end")
+        for f in db.list_meeting_files(meeting_id):
+            mark = "已发送" if f["sent"] else "未发送"
+            self.files_lb.insert("end", f"[{f['ftype']}] {f['name']} ({mark})")
+
+    def _file_send(self, meeting_id):
+        sel = self.files_lb.curselection()
+        if not sel:
+            messagebox.showinfo("提示", "请先选择文件")
+            return
+        files = db.list_meeting_files(meeting_id)
+        f = files[sel[0]]
+        target = CONFIG.get("wechat", {}).get("print_target", "") or ""
+        if not target:
+            messagebox.showwarning("提示", "未配置印刷微信联系人（设置页）")
+            return
+        ok = bool(actions.send_wechat_file(f["path"], target))
+        if ok:
+            db.update_file_sent(f["id"], 1)
+            messagebox.showinfo("发送", "文件已发送")
+        else:
+            messagebox.showwarning("发送", "发送失败（微信未运行或未启用自动发送）")
+        self._files_reload(meeting_id)
 
     def _confirm_item(self, item_id):
         item = db.get_prep_item(item_id)

@@ -152,6 +152,22 @@ li:last-child { border-bottom:0; }
         <div class="result" v-if="it.result">{{ it.result }}</div>
         <button v-if="it.status==='waiting'" @click="actItem(it)">{{ btnText(it) }}</button>
       </div>
+
+      <h3>材料 / 文件</h3>
+      <textarea v-model="matText" rows="8" placeholder="材料 JSON（AI 生成后可直接编辑）"></textarea>
+      <div>
+        <button @click="matGen">AI生成材料</button>
+        <button @click="matSave">保存材料</button>
+        <button @click="genPpt">生成PPT/PDF</button>
+      </div>
+      <div class="mlist"><ul>
+        <li v-for="f in meetingFiles" :key="f.id">
+          [{{ f.ftype }}] {{ f.name }}
+          <span v-if="f.sent" style="color:var(--muted)">已发送</span>
+          <button class="ghost" v-else @click="fileSend(f.id)">发送</button>
+        </li>
+        <li v-if="!meetingFiles.length" class="empty">暂无文件</li>
+      </ul></div>
     </div>
 
     <div class="card" style="animation-delay:.15s">
@@ -314,6 +330,7 @@ createApp({
              templates: [], tplCode: 'call_room', tplText: '', tplAI: false,
              status: null, tasks: [], newTaskTitle: '', newTaskDue: '',
              scanInfo: { status: 'idle', progress: [] },
+             matText: '', meetingFiles: [],
              newTitle: '', newTime: '', manualText: '' };
   },
   mounted() {
@@ -341,6 +358,7 @@ createApp({
       if (this.current) {
         try {
           this.current = await this.api('/api/meetings/' + this.current.meeting.id);
+          this.loadMaterials();
         } catch (e) {
           this.current = null;
         }
@@ -352,6 +370,34 @@ createApp({
     async runScan() {
       await this.api('/api/scan/run', { method: 'POST' });
       this.loadScan();
+    },
+    async loadMaterials() {
+      if (!this.current) return;
+      this.matText = this.current.meeting.materials || '';
+      this.meetingFiles = await this.api('/api/meetings/' + this.current.meeting.id + '/files');
+    },
+    async matGen() {
+      const id = this.current.meeting.id;
+      const r = await this.api('/api/meetings/' + id + '/materials', { method: 'POST' });
+      if (r.materials) this.matText = JSON.stringify(r.materials, null, 2);
+    },
+    async matSave() {
+      const id = this.current.meeting.id;
+      await this.api('/api/meetings/' + id + '/materials', {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ materials: this.matText })
+      });
+    },
+    async genPpt() {
+      const id = this.current.meeting.id;
+      await this.matSave();
+      await this.api('/api/meetings/' + id + '/ppt', { method: 'POST' });
+      this.meetingFiles = await this.api('/api/meetings/' + id + '/files');
+    },
+    async fileSend(fid) {
+      const id = this.current.meeting.id;
+      await this.api('/api/meetings/' + id + '/files/' + fid + '/send', { method: 'POST' });
+      this.meetingFiles = await this.api('/api/meetings/' + id + '/files');
     },
     async loadStatus() {
       try { this.status = await this.api('/api/status'); } catch (e) {}

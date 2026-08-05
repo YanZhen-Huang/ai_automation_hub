@@ -31,6 +31,45 @@ def sanitize_filename(name, max_len=80):
     return s or "untitled"
 
 
+def md_to_pdf(md_text, out_path):
+    """markdown → PDF（fpdf2 + 中文字体）。返回路径或 None。"""
+    try:
+        from fpdf import FPDF
+    except ImportError:
+        return None
+    import re as _re
+    FONT = r"C:\Windows\Fonts\simhei.ttf"
+    pdf = FPDF()
+    pdf.add_font("hei", "", FONT)
+    pdf.add_page()
+    pdf.set_margins(14, 12, 14)
+    cw = pdf.w - 28
+    for raw in str(md_text or "").splitlines():
+        s = raw.strip()
+        if not s:
+            continue
+        if s.startswith("# "):
+            pdf.set_font("hei", size=16)
+            pdf.multi_cell(cw, 9, s[2:])
+        elif s.startswith("## "):
+            pdf.set_font("hei", size=13)
+            pdf.multi_cell(cw, 8, s[3:])
+        elif s.startswith("- "):
+            pdf.set_font("hei", size=10)
+            pdf.multi_cell(cw, 6, "· " + s[2:])
+        elif s.startswith("|"):
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            if not all(_re.fullmatch(r":?-{2,}:?", c) for c in cells):
+                pdf.set_font("hei", size=9)
+                pdf.cell(cw, 6, " | ".join(cells))
+                pdf.ln()
+        else:
+            pdf.set_font("hei", size=10)
+            pdf.multi_cell(cw, 6, s)
+    pdf.output(str(out_path))
+    return str(out_path)
+
+
 def notify(title, message):
     """系统通知（由桌面/Web 端展示）。"""
     bus().publish("notification", {"title": title, "message": message})

@@ -1,9 +1,12 @@
+import json
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from automation import phrases, workflows
+from automation import actions, phrases, workflows
 from collectors import submit_manual
 from core import settings as settings_center
+from core.config import CONFIG
 from storage import db
 
 router = APIRouter(prefix="/api")
@@ -181,6 +184,7 @@ class MeetingUpdate(BaseModel):
     room: str = ""
     location: str = ""
     attendees: str = ""
+    auto_materials: int | None = None
 
 
 @router.put("/meetings/{meeting_id}")
@@ -226,6 +230,55 @@ def scan_run():
     if engine.status != "running":
         threading.Thread(target=engine.run_once, daemon=True).start()
     return {"status": engine.status}
+
+
+class MaterialsIn(BaseModel):
+    materials: str = ""
+
+
+@router.get("/meetings/{meeting_id}/materials")
+def get_materials(meeting_id: int):
+    return {"materials": workflows.get_materials(meeting_id)}
+
+
+@router.post("/meetings/{meeting_id}/materials")
+def gen_materials(meeting_id: int):
+    return {"materials": workflows.gen_materials(meeting_id)}
+
+
+@router.put("/meetings/{meeting_id}/materials")
+def save_materials(meeting_id: int, payload: MaterialsIn):
+    try:
+        json.loads(payload.materials)
+    except Exception:
+        raise HTTPException(400, "材料 JSON 格式不正确")
+    db.update_meeting(meeting_id, materials=payload.materials)
+    return {"ok": True}
+
+
+@router.post("/meetings/{meeting_id}/ppt")
+def gen_ppt(meeting_id: int):
+    files = workflows.gen_files(meeting_id)
+    return {"files": [{"ftype": f, "path": p} for f, p in files]}
+
+
+@router.get("/meetings/{meeting_id}/files")
+def meeting_files(meeting_id: int):
+    return db.list_meeting_files(meeting_id)
+
+
+@router.post("/meetings/{meeting_id}/files/{file_id}/send")
+def send_file(meeting_id: int, file_id: int):
+    f = db.get_meeting_file(file_id)
+    if f is None:
+        raise HTTPException(404, "文件不存在")
+    target = CONFIG.get("wechat", {}).get("print_target", "") or ""
+    if not target:
+        raise HTTPException(400, "未配置印刷微信联系人")
+    ok = bool(actions.send_wechat_file(f["path"], target))
+    if ok:
+        db.update_file_sent(file_id, 1)
+    return {"ok": ok, "path": f["path"]}
 
 
 class TaskIn(BaseModel):

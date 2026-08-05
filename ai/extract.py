@@ -6,6 +6,7 @@ import json
 import re
 
 from ai import llm
+from core.config import CONFIG
 from core.logger import get_logger
 
 log = get_logger("extract")
@@ -136,33 +137,65 @@ def extract_attendees(texts):
 
 
 MATERIAL_PROMPT = """你是一位会议材料撰写专家。根据收集到的信息，为会议《{title}》撰写汇报材料。
+会议时间：{time}；地点：{location}；出席：{attendees}；部门：{department}。
 输出 JSON：
-{{"summary": "一句话摘要", "chapters": [{{"heading": "章节标题", "points": ["要点1", "要点2"]}}]}}
-要求：2-4 个章节，每章 2-5 个要点，基于信息内容，不得编造。"""
+{{"cover": {{"title": "{title}", "subtitle": "汇报材料", "meeting_time": "{time}", "location": "{location}", "presenter": "{presenter}", "department": "{department}"}},
+  "agenda": ["议程1", "议程2"],
+  "summary": "一句话摘要",
+  "chapters": [{{"heading": "章节标题", "points": ["要点1", "要点2"], "table": {{"cols": ["列1", "列2"], "rows": [["值1", "值2"]]}}}}],
+  "conclusion": "总结建议"}}
+要求：2-4 个章节，每章 2-5 个要点；章节含数字/数据时给出 table；基于信息内容不得编造；cover/agenda 结合会议信息补充。"""
 
 
-def generate_materials(title, texts):
-    """生成结构化汇报材料 {summary, chapters:[{heading, points}]}。"""
+def generate_materials(title, texts, meeting=None):
+    """生成结构化汇报材料：{cover, agenda, summary, chapters:[{heading,points,table}], conclusion}。"""
+    meeting = meeting or {}
+    t = meeting.get("start_time") or ""
+    loc = meeting.get("location") or ""
+    att = meeting.get("attendees") or ""
+    presenter = ""
+    if att:
+        presenter = att.split(",")[0].strip() or ""
+    department = CONFIG.get("scan", {}).get("role", "") or ""
     if not texts:
-        return {"summary": "无信息", "chapters": []}
+        return {"cover": {"title": title, "subtitle": "汇报材料",
+                          "meeting_time": t, "location": loc,
+                          "presenter": presenter, "department": department},
+                "agenda": [], "summary": "无信息", "chapters": [],
+                "conclusion": ""}
     if llm.available():
         try:
+            prompt = MATERIAL_PROMPT.format(title=title, time=t or "待定",
+                                            location=loc or "待定",
+                                            attendees=att or "待定",
+                                            department=department or "待定",
+                                            presenter=presenter or "待定")
             resp = llm.chat([
                 {"role": "system", "content": "只输出 JSON"},
-                {"role": "user", "content": MATERIAL_PROMPT.format(title=title)
+                {"role": "user", "content": prompt
                  + "\n\n信息：\n" + json.dumps(texts, ensure_ascii=False)},
-            ], temperature=0.3, max_tokens=2000)
+            ], temperature=0.3, max_tokens=2500)
             m = re.search(r"\{.*\}", resp, re.S)
             data = json.loads(m.group(0)) if m else {}
             return {
+                "cover": data.get("cover") or {},
+                "agenda": data.get("agenda") or [],
                 "summary": str(data.get("summary", ""))[:80],
                 "chapters": data.get("chapters") or [],
+                "conclusion": str(data.get("conclusion", ""))[:120],
             }
         except Exception:
             log.exception("AI 材料生成失败，降级")
     res = _rule_extract(texts)
-    return {"summary": res.get("summary", ""),
-            "chapters": [{"heading": "要点", "points": res.get("points", [])}]}
+    return {
+        "cover": {"title": title, "subtitle": "汇报材料", "meeting_time": t,
+                  "location": loc, "presenter": presenter, "department": department},
+        "agenda": [],
+        "summary": res.get("summary", ""),
+        "chapters": [{"heading": "要点", "points": res.get("points", []),
+                      "table": None}],
+        "conclusion": "",
+    }
 
 
 # ── 待办任务提炼（desk_task_board 能力并入） ──

@@ -76,6 +76,15 @@ CREATE TABLE IF NOT EXISTS tasks (
     created_at TEXT,
     updated_at TEXT
 );
+CREATE TABLE IF NOT EXISTS meeting_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    path TEXT NOT NULL,
+    ftype TEXT DEFAULT 'pptx',
+    sent INTEGER DEFAULT 0,
+    created_at TEXT
+);
 """
 
 
@@ -103,9 +112,13 @@ def init_db():
 
 def _ensure_columns(conn):
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(meetings)").fetchall()}
-    for col in ("room", "location", "attendees", "attendee_source"):
+    for col in ("room", "location", "attendees", "attendee_source",
+                "auto_materials", "materials"):
         if col not in cols:
-            conn.execute(f"ALTER TABLE meetings ADD COLUMN {col} TEXT DEFAULT ''")
+            if col in ("auto_materials",):
+                conn.execute(f"ALTER TABLE meetings ADD COLUMN {col} INTEGER DEFAULT 1")
+            else:
+                conn.execute(f"ALTER TABLE meetings ADD COLUMN {col} TEXT DEFAULT ''")
 
 
 # ---------- 信息库 ----------
@@ -192,7 +205,7 @@ def get_meeting(meeting_id):
 
 def update_meeting(meeting_id, **fields):
     allowed = {"title", "start_time", "status", "room", "location",
-               "attendees", "attendee_source"}
+               "attendees", "attendee_source", "auto_materials", "materials"}
     upd = {k: v for k, v in fields.items() if k in allowed}
     if not upd:
         return
@@ -484,6 +497,52 @@ def due_tasks():
             "SELECT * FROM tasks WHERE status != 'done' AND due_date IS NOT NULL "
             "AND due_date != ''").fetchall()
         return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+# ---------- 会议材料与文件 ----------
+
+def add_meeting_file(meeting_id, name, path, ftype):
+    conn = get_conn()
+    try:
+        cur = conn.execute(
+            "INSERT INTO meeting_files (meeting_id, name, path, ftype, sent, created_at) "
+            "VALUES (?,?,?,?,0,?)",
+            (meeting_id, name, path, ftype, _now()))
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def list_meeting_files(meeting_id):
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM meeting_files WHERE meeting_id = ? ORDER BY id",
+            (meeting_id,)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_meeting_file(file_id):
+    conn = get_conn()
+    try:
+        r = conn.execute("SELECT * FROM meeting_files WHERE id = ?",
+                         (file_id,)).fetchone()
+        return dict(r) if r else None
+    finally:
+        conn.close()
+
+
+def update_file_sent(file_id, sent=1):
+    conn = get_conn()
+    try:
+        conn.execute("UPDATE meeting_files SET sent = ? WHERE id = ?",
+                     (sent, file_id))
+        conn.commit()
     finally:
         conn.close()
 
