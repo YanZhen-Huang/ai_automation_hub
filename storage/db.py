@@ -208,16 +208,16 @@ def update_meeting(meeting_id, **fields):
 # ---------- 会议准备动作项 ----------
 
 def add_prep_items(meeting_id, items):
-    """items: list of dict(phase, code, name, order_index, detail)."""
+    """items: list of dict(phase, code, name, order_index, detail). 批量事务。"""
     conn = get_conn()
     try:
-        for it in items:
-            conn.execute(
-                "INSERT INTO prep_items (meeting_id, phase, code, name, detail, "
-                "order_index, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-                (meeting_id, it["phase"], it["code"], it["name"],
-                 it.get("detail", ""), it.get("order_index", 0), _now(), _now()))
-        conn.commit()
+        with conn:
+            for it in items:
+                conn.execute(
+                    "INSERT INTO prep_items (meeting_id, phase, code, name, detail, "
+                    "order_index, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+                    (meeting_id, it["phase"], it["code"], it["name"],
+                     it.get("detail", ""), it.get("order_index", 0), _now(), _now()))
     finally:
         conn.close()
 

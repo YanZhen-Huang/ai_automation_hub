@@ -332,7 +332,11 @@ createApp({
       this.meetings = await this.api('/api/meetings');
       this.loadStatus(); this.loadTasks();
       if (this.current) {
-        this.current = await this.api('/api/meetings/' + this.current.meeting.id);
+        try {
+          this.current = await this.api('/api/meetings/' + this.current.meeting.id);
+        } catch (e) {
+          this.current = null;
+        }
       }
     },
     async loadStatus() {

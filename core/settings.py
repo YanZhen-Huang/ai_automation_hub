@@ -64,7 +64,8 @@ def _set_path(cfg, path, value):
 def _coerce(value, vtype):
     try:
         if vtype == "int":
-            return int(value)
+            v = int(value)
+            return max(0, min(v, 86400))
         if vtype == "bool":
             return str(value).lower() in ("1", "true", "yes", "on")
     except (TypeError, ValueError):

@@ -160,7 +160,7 @@ def generate_materials(title, texts):
 
 # ── 待办任务提炼（desk_task_board 能力并入） ──
 
-from datetime import datetime, timedelta  # noqa: E402
+from core.dates import parse_date as _parse_date  # noqa: E402
 
 TASK_PROMPT = """你是办公任务分类助手。判断每条消息是否属于"办公任务"（需要用户去完成/跟进/汇报的工作事项）。
 判断标准：
@@ -177,42 +177,8 @@ TASK_PROMPT = """你是办公任务分类助手。判断每条消息是否属于
 
 
 def _parse_date(raw):
-    if not raw:
-        return None
-    s = str(raw).strip()
-    now = datetime.now()
-    if s == "今天":
-        return now.strftime("%Y-%m-%d")
-    if s == "明天":
-        return (now + timedelta(days=1)).strftime("%Y-%m-%d")
-    if s == "后天":
-        return (now + timedelta(days=2)).strftime("%Y-%m-%d")
-
-    weekdays = {"周一": 0, "周二": 1, "周三": 2, "周四": 3, "周五": 4, "周六": 5, "周日": 6,
-                "星期一": 0, "星期二": 1, "星期三": 2, "星期四": 3, "星期五": 4,
-                "星期六": 5, "星期日": 6, "星期天": 6}
-    for name, target in weekdays.items():
-        if name in s:
-            diff = (target - now.weekday()) % 7
-            if diff == 0:
-                diff = 7
-            return (now + timedelta(days=diff)).strftime("%Y-%m-%d")
-
-    m = re.search(r"(\d{4})[年\-/\.](\d{1,2})[月\-/\.](\d{1,2})", s)
-    if m:
-        return f"{int(m.group(1)):04d}-{int(m.group(2)):02d}-{int(m.group(3)):02d}"
-    m = re.search(r"(\d{1,2})[月\-/\.](\d{1,2})", s)
-    if m:
-        return f"{now.year:04d}-{int(m.group(1)):02d}-{int(m.group(2)):02d}"
-    return None
-
-
-TASK_KEYWORDS = ["汇报", "提交", "跟进", "开会", "会议", "交材料", "写文档", "写报告",
-                 "准备", "整理", "审批", "待办", "记得", "别忘了", "务必", "尽快",
-                 "截止", "到期", "今天", "明天", "后天", "下周", "下周", "礼拜",
-                 "周一", "周二", "周三", "周四", "周五", "周六", "周日", "月", "日"]
-TASK_STRONG = ["汇报", "提交", "跟进", "开会", "会议", "交材料", "写文档", "写报告",
-               "记得", "别忘了", "务必", "尽快", "截止", "到期"]
+    from core.dates import parse_date
+    return parse_date(raw)
 
 
 def _find_date(text):

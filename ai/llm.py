@@ -6,21 +6,21 @@ from core.logger import get_logger
 log = get_logger("llm")
 
 
-def _client():
+def _client(timeout=60):
     from openai import OpenAI
     return OpenAI(api_key=CONFIG["llm"]["api_key"],
                   base_url=CONFIG["llm"]["base_url"],
-                  timeout=60, max_retries=1)
+                  timeout=timeout, max_retries=1)
 
 
 def available() -> bool:
     return bool(CONFIG["llm"]["api_key"])
 
 
-def chat(messages, temperature=0.1, max_tokens=1500):
-    """messages: list[{'role','content'}]，返回文本。"""
+def chat(messages, temperature=0.1, max_tokens=1500, timeout=60):
+    """messages: list[{'role','content'}]，返回文本。timeout 秒超时。"""
     cfg = CONFIG["llm"]
-    client = _client()
+    client = _client(timeout=timeout)
     resp = client.chat.completions.create(
         model=cfg["model"],
         messages=messages,

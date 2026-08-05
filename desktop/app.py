@@ -1,4 +1,5 @@
 import queue
+import threading
 import time
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -163,6 +164,7 @@ class DesktopApp:
     def _task_selected(self):
         sel = self.task_tree.selection()
         if not sel:
+            messagebox.showinfo("提示", "请先选中一个任务")
             return None
         return int(sel[0])
 
@@ -474,22 +476,15 @@ class DesktopApp:
         mid = payload.get("meeting_id")
         item_id = payload.get("item_id")
         name = payload.get("name") or "预订会议室"
-        cands = workflows.candidates_for_room(mid)
         dlg = tk.Toplevel(self.root)
         dlg.title(f"选择会议室 · {name}")
         dlg.configure(bg=BG)
         dlg.grab_set()
-        tk.Label(dlg, text="可用会议室（AI 已排除不可用项）：", bg=BG, fg=INK,
+        tk.Label(dlg, text="可用会议室（AI 正在排除不可用项…）", bg=BG, fg=INK,
                  font=("Microsoft YaHei UI", 9, "bold")).pack(padx=8, pady=6, anchor="w")
         lb = tk.Listbox(dlg, bg=PANEL, fg=INK, relief="flat", height=8,
                         highlightthickness=1, highlightbackground=LINE)
         lb.pack(fill=tk.BOTH, expand=True, padx=8)
-        for r in cands:
-            lb.insert("end", r)
-        if not cands:
-            tk.Label(dlg, text="（无可用会议室，请在「设置」页维护会议室库）",
-                     bg=BG, fg=RED, font=("Microsoft YaHei UI", 9)).pack(
-                padx=8, pady=4, anchor="w")
 
         def ok():
             sel = lb.curselection()
@@ -506,6 +501,23 @@ class DesktopApp:
             pady=8, side=tk.LEFT, padx=(8, 4))
         tk.Button(dlg, text="取消", command=dlg.destroy, bg=PANEL, fg=INK,
                   relief="flat").pack(pady=8, side=tk.LEFT)
+
+        threading.Thread(target=self._load_rooms_async, args=(lb, mid),
+                         daemon=True).start()
+
+    def _load_rooms_async(self, lb, mid):
+        try:
+            cands = workflows.candidates_for_room(mid)
+        except Exception:
+            cands = []
+        self._post(self._fill_rooms, lb, cands)
+
+    def _fill_rooms(self, lb, cands):
+        lb.delete(0, "end")
+        for r in cands:
+            lb.insert("end", r)
+        if not cands:
+            lb.insert("end", "（无可用会议室，请先维护会议室库）")
 
     def _ask_attendees(self, payload):
         mid = payload.get("meeting_id")
@@ -524,25 +536,39 @@ class DesktopApp:
 
         def ai_fill():
             infos = db.list_info_items(mid)
-            names = extract_attendees([i["content"] for i in infos])
-            if names:
-                var.set(",".join(names))
-                messagebox.showinfo("AI 提炼", "已从信息中提炼人员，可编辑后确认")
-            else:
-                messagebox.showinfo("AI 提炼", "未提炼到人员，请手动录入")
+            texts = [i["content"] for i in infos]
+            btn_ai.config(text="AI 提炼中…", state="disabled")
+
+            def work():
+                try:
+                    names = extract_attendees(texts)
+                except Exception:
+                    names = []
+                self._post(ai_done, names)
+
+            def ai_done(names):
+                if names:
+                    var.set(",".join(names))
+                    messagebox.showinfo("AI 提炼", "已从信息中提炼人员，可编辑后确认")
+                else:
+                    messagebox.showinfo("AI 提炼", "未提炼到人员，请手动录入")
+                btn_ai.config(text="AI 提炼", state="normal")
+
+            threading.Thread(target=work, daemon=True).start()
 
         def ok():
             names = var.get().strip()
             if not names:
                 messagebox.showwarning("提示", "请填写与会人员")
                 return
-            workflows.set_attendees(mid, names, "ai" if False else "manual")
+            workflows.set_attendees(mid, names, "manual")
             dlg.destroy()
             self.refresh_meetings()
 
-        tk.Button(dlg, text="AI 提炼", command=ai_fill, bg=CYAN2, fg="#06121f",
-                  font=("Microsoft YaHei UI", 9, "bold"), relief="flat").pack(
-            pady=8, side=tk.LEFT, padx=(8, 4))
+        btn_ai = tk.Button(dlg, text="AI 提炼", command=ai_fill, bg=CYAN2,
+                           fg="#06121f", font=("Microsoft YaHei UI", 9, "bold"),
+                           relief="flat")
+        btn_ai.pack(pady=8, side=tk.LEFT, padx=(8, 4))
         tk.Button(dlg, text="确认名单", command=ok, bg=CYAN2, fg="#06121f",
                   font=("Microsoft YaHei UI", 9, "bold"), relief="flat").pack(
             pady=8, side=tk.LEFT, padx=4)

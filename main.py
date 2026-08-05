@@ -46,28 +46,35 @@ def ingest(msgs):
 
 
 def _collect_work():
-    """多源采集 → 去重入库 → AI 提炼（会议要点 + 待办任务，信息库互享）。"""
+    """多源采集 → 去重入库（快）；AI 提炼放后台线程，不阻塞调度器。"""
     new = ingest(collect_all())
     if not new:
         return
-    texts = [m["content"] for m in new]
-    res = extract(texts)
-    if res.get("is_meeting_related"):
-        bus().publish("notification",
-                      {"title": "检测到会议相关信息",
-                       "message": res.get("summary") or "已入库，可创建会议准备"})
-    # 共享信息库：同批信息同时提炼待办任务
-    from ai.extract import extract_tasks
-    added = 0
-    for t in extract_tasks(texts):
-        _, is_new = db.add_task_unique(t["title"], t["detail"], t["due_date"])
-        if is_new:
-            added += 1
     bus().publish("info.new", {"count": len(new)})
-    if added:
-        bus().publish("task.new", {"count": added})
-    log.info("采集 %d 条，会议相关: %s，提炼任务 %d 条",
-             len(new), res.get("is_meeting_related"), added)
+    texts = [m["content"] for m in new]
+    threading.Thread(target=_analyze_async, args=(texts,), daemon=True).start()
+
+
+def _analyze_async(texts):
+    """后台：共享信息库 → 会议要点 + 待办任务双产物。"""
+    try:
+        from ai.extract import extract, extract_tasks
+        res = extract(texts)
+        if res.get("is_meeting_related"):
+            bus().publish("notification",
+                          {"title": "检测到会议相关信息",
+                           "message": res.get("summary") or "已入库，可创建会议准备"})
+        added = 0
+        for t in extract_tasks(texts):
+            _, is_new = db.add_task_unique(t["title"], t["detail"], t["due_date"])
+            if is_new:
+                added += 1
+        if added:
+            bus().publish("task.new", {"count": added})
+        log.info("后台提炼完成：会议相关 %s，新任务 %d 条",
+                 res.get("is_meeting_related"), added)
+    except Exception:
+        log.exception("后台提炼异常")
 
 
 def collect_once():

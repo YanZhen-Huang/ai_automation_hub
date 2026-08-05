@@ -79,7 +79,9 @@ def open_url(url):
 
 def run_command(cmd):
     try:
-        subprocess.Popen(cmd, shell=True)
+        if isinstance(cmd, str):
+            cmd = cmd.split()
+        subprocess.Popen(cmd, shell=False)
         return True
     except Exception:
         log.exception("命令执行失败: %s", cmd)
@@ -171,27 +173,40 @@ def send_wechat_text(text, target=""):
     if win is None:
         return False
     try:
+        _deadline = time.time() + 30
+
+        def _timeout():
+            return time.time() > _deadline
+
         edits = _collect_edits(win)
         if not edits:
             return False
         search = edits[0]
         search.Click()
         time.sleep(0.3)
+        if _timeout():
+            return False
         search.SendKeys("{Ctrl}a")
         search.SendKeys(target)
         time.sleep(int(CONFIG.get("wechat", {}).get("send_delay", 3)))
+        if _timeout():
+            return False
         conv = _find_conv_item(win, target)
         if conv is None:
             log.warning("未找到会话: %s", target)
             return False
         conv.Click()
         time.sleep(0.6)
+        if _timeout():
+            return False
         edits2 = _collect_edits(win)
         if not edits2:
             return False
         inbox = edits2[-1]
         inbox.Click()
         time.sleep(0.3)
+        if _timeout():
+            return False
         inbox.SendKeys(text)
         time.sleep(0.3)
         inbox.SendKeys("{Enter}")
@@ -326,21 +341,21 @@ def execute(action, item_id, **kwargs):
     result = None
     try:
         if action == "notify":
-            result = notify(kwargs["title"], kwargs["message"])
+            result = notify(kwargs.get("title", ""), kwargs.get("message", ""))
         elif action == "export":
-            result = export_text(kwargs["title"], kwargs["content"])
+            result = export_text(kwargs.get("title", ""), kwargs.get("content", ""))
         elif action == "ppt":
-            result = generate_ppt(kwargs["title"], kwargs.get("points", []))
+            result = generate_ppt(kwargs.get("title", ""), kwargs.get("points", []))
         elif action == "open_url":
-            result = open_url(kwargs["url"])
+            result = open_url(kwargs.get("url", ""))
         elif action == "run_command":
-            result = run_command(kwargs["cmd"])
+            result = run_command(kwargs.get("cmd", ""))
         elif action == "wechat":
             result = send_wechat_text(kwargs.get("text", ""),
                                       kwargs.get("target", ""))
         elif action == "call":
-            result = call_phone(item_id, kwargs["name"], kwargs["text"],
-                                kwargs.get("number", ""))
+            result = call_phone(item_id, kwargs.get("name", ""),
+                                kwargs.get("text", ""), kwargs.get("number", ""))
         else:
             raise ValueError(f"未知动作: {action}")
         _log(item_id, action, "success", str(result))

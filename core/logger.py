@@ -1,5 +1,6 @@
 import logging
 import sys
+from logging.handlers import RotatingFileHandler
 
 from core.config import DATA_DIR
 
@@ -13,7 +14,8 @@ def setup_logger(level=logging.INFO):
     logger.setLevel(level)
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
 
-    fh = logging.FileHandler(DATA_DIR / "app.log", encoding="utf-8")
+    fh = RotatingFileHandler(DATA_DIR / "app.log", maxBytes=5 * 1024 * 1024,
+                             backupCount=3, encoding="utf-8")
     fh.setFormatter(fmt)
     logger.addHandler(fh)
 

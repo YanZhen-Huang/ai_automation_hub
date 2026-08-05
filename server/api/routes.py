@@ -58,7 +58,7 @@ def create_meeting(payload: MeetingIn):
 def meeting_detail(meeting_id: int):
     meeting = db.get_meeting(meeting_id)
     if not meeting:
-        return {"error": "not found"}
+        raise HTTPException(404, "会议不存在")
     items = db.list_prep_items(meeting_id)
     return {
         "meeting": meeting,
@@ -228,8 +228,12 @@ def list_tasks(status: str | None = None):
 def add_task(payload: TaskIn):
     if not payload.title.strip():
         raise HTTPException(400, "任务标题不能为空")
-    return {"id": db.add_task(payload.title.strip(), payload.detail,
-                              payload.due_date or None, source="manual")}
+    from core.dates import normalize_due
+    due = normalize_due(payload.due_date)
+    if payload.due_date and due is None:
+        raise HTTPException(400, "截止日期格式不正确，示例：2026-08-10 或 8月10日")
+    return {"id": db.add_task_unique(payload.title.strip(), payload.detail,
+                                     due, source="manual")[0]}
 
 
 @router.post("/tasks/{task_id}/done")
