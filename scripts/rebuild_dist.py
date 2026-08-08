@@ -36,7 +36,7 @@ make_zip(app, pkg_zip)
 r = subprocess.run(
     [sys.executable, "-m", "PyInstaller", "--noconfirm", "--onefile",
      "--windowed", "--name", "meeting_prep_setup",
-     "--add-data", f"{pkg_zip};.", "build/installer_setup.py"],
+     "--add-data", f"{pkg_zip};.", "scripts/installer_setup.py"],
     cwd=str(root), capture_output=True, text=True, timeout=900)
 print("setup rc:", r.returncode)
 print((r.stdout or r.stderr)[-200:])
