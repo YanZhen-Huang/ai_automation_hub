@@ -4,6 +4,8 @@
 
 **技术栈**：Python 3.13 全家桶（tkinter 桌面端、FastAPI + Vue(CDN) Web 端、SQLite 存储、DeepSeek/OpenAI 兼容 LLM）。
 
+**提示**：该项目不完整！未经过测试！由AI编写！可能有未知漏洞！手机端仅支持HarmonyOS！
+
 ## 顶层结构
 
 ```
