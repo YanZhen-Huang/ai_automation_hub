@@ -11,6 +11,8 @@ SETTING_ITEMS = [
      "description": "使用的模型名，默认 deepseek-chat"},
     {"key": "server.port", "label": "Web 端口", "type": "int",
      "description": "Web 管理界面端口，修改后需重启生效"},
+    {"key": "mini.token", "label": "小程序 Token", "type": "password",
+     "description": "微信小程序访问口令（请求头 X-API-Token）；留空则关闭校验，仅限局域网调试用"},
     {"key": "phone.port", "label": "手机联动端口", "type": "int",
      "description": "鸿蒙手机端连接端口，修改后需重启生效"},
     {"key": "collect.interval_seconds", "label": "采集轮询间隔(秒)", "type": "int",

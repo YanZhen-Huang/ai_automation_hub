@@ -1,0 +1,74 @@
+.field-label {
+  font-size: 26rpx;
+  color: #666;
+  margin-top: 20rpx;
+}
+
+.field-label:first-child {
+  margin-top: 0;
+}
+
+.field {
+  margin-top: 10rpx;
+  background: #f8f9fb;
+  border-radius: 12rpx;
+  padding: 18rpx 20rpx;
+  font-size: 28rpx;
+}
+
+.field-tip {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #aaa;
+}
+
+.field-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+
+.field-btn {
+  flex: 1;
+  font-size: 28rpx;
+}
+
+.test-result {
+  margin-top: 20rpx;
+  font-size: 26rpx;
+  color: #4a6cf7;
+}
+
+.about-title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.about-line {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #888;
+}
+
+.qr-btn {
+  margin-top: 16rpx;
+}
+
+.qr-block {
+  margin-top: 20rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.qr-url {
+  font-size: 26rpx;
+  color: #4a6cf7;
+  word-break: break-all;
+}
+
+.qr-img {
+  margin-top: 16rpx;
+  width: 320rpx;
+  height: 320rpx;
+}

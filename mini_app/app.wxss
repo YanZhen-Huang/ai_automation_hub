@@ -1,0 +1,100 @@
+page {
+  background: #f5f6fa;
+  font-size: 28rpx;
+  color: #333;
+}
+
+.page {
+  padding: 24rpx;
+  padding-bottom: 40rpx;
+}
+
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin: 20rpx 4rpx;
+  color: #444;
+}
+
+.empty {
+  color: #aaa;
+  text-align: center;
+  padding: 60rpx 0;
+  font-size: 26rpx;
+}
+
+.btn {
+  background: #4a6cf7;
+  color: #fff;
+  border-radius: 12rpx;
+  padding: 16rpx 32rpx;
+  font-size: 28rpx;
+  text-align: center;
+  border: none;
+  line-height: 1.4;
+}
+
+.btn.btn-plain {
+  background: #fff;
+  color: #4a6cf7;
+  border: 2rpx solid #4a6cf7;
+}
+
+.btn.btn-success {
+  background: #2ecc71;
+}
+
+.btn.btn-muted {
+  background: #eee;
+  color: #666;
+}
+
+.btn[disabled] {
+  opacity: 0.5;
+}
+
+/* ---------- 动画 ---------- */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(30rpx); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.85); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slide-shimmer {
+  from { background-position: -400rpx 0; }
+  to { background-position: 400rpx 0; }
+}
+
+.anim-card {
+  animation: fade-up 0.4s ease both;
+}
+
+.anim-pop {
+  animation: pop-in 0.3s ease both;
+}
+
+.anim-fade {
+  animation: fade-in 0.3s ease both;
+}
+
+.btn-hover {
+  transform: scale(0.97);
+  opacity: 0.92;
+}

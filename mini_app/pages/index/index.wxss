@@ -1,0 +1,66 @@
+.banner {
+  background: linear-gradient(135deg, #4a6cf7, #6a8cff);
+  color: #fff;
+  padding: 40rpx 32rpx;
+}
+
+.banner-title {
+  font-size: 44rpx;
+  font-weight: 700;
+}
+
+.banner-sub {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  opacity: 0.9;
+}
+
+.meeting:active {
+  transform: scale(0.98);
+}
+
+.meeting-title {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.meeting-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #888;
+}
+
+.status-prepared {
+  color: #2ecc71;
+}
+
+.status-cancelled {
+  color: #e74c3c;
+}
+
+.status-preparing {
+  color: #f39c12;
+}
+
+.progress-wrap {
+  margin-top: 16rpx;
+  height: 12rpx;
+  background: #eee;
+  border-radius: 6rpx;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #4a6cf7, #7c9bff);
+  border-radius: 6rpx;
+  transition: width 0.7s ease 0.15s;
+}
+
+.progress-text {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #aaa;
+}

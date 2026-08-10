@@ -25,8 +25,11 @@ DEFAULTS = {
         "model": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
     },
     "server": {
-        "host": "127.0.0.1",
+        "host": "0.0.0.0",      # 供局域网（微信小程序开发版）访问
         "port": 8780,
+    },
+    "mini": {
+        "token": "",            # 小程序访问口令，留空=不校验（仅局域网调试）
     },
     "collect": {
         "interval_seconds": int(os.environ.get("COLLECT_INTERVAL", "300")),

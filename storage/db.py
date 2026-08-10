@@ -85,6 +85,12 @@ CREATE TABLE IF NOT EXISTS meeting_files (
     sent INTEGER DEFAULT 0,
     created_at TEXT
 );
+CREATE TABLE IF NOT EXISTS meeting_attendance (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meeting_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    scanned_at TEXT
+);
 """
 
 
@@ -543,6 +549,37 @@ def update_file_sent(file_id, sent=1):
         conn.execute("UPDATE meeting_files SET sent = ? WHERE id = ?",
                      (sent, file_id))
         conn.commit()
+    finally:
+        conn.close()
+
+
+# ---------- 会议签到 ----------
+
+def add_attendance(meeting_id, name):
+    """扫码签到，同名去重。返回 (id, is_new)。"""
+    conn = get_conn()
+    try:
+        r = conn.execute(
+            "SELECT id FROM meeting_attendance WHERE meeting_id = ? AND name = ? LIMIT 1",
+            (meeting_id, name)).fetchone()
+        if r:
+            return r["id"], False
+        cur = conn.execute(
+            "INSERT INTO meeting_attendance (meeting_id, name, scanned_at) "
+            "VALUES (?,?,?)", (meeting_id, name, _now()))
+        conn.commit()
+        return cur.lastrowid, True
+    finally:
+        conn.close()
+
+
+def list_attendance(meeting_id):
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT * FROM meeting_attendance WHERE meeting_id = ? ORDER BY id",
+            (meeting_id,)).fetchall()
+        return [dict(r) for r in rows]
     finally:
         conn.close()
 

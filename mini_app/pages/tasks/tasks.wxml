@@ -1,0 +1,24 @@
+<view class="page">
+
+  <view class="filters anim-fade">
+    <view class="filter {{filter === 'active' ? 'filter-on' : ''}}" hover-class="btn-hover" data-f="active" bindtap="switchFilter">进行中</view>
+    <view class="filter {{filter === 'dismissed' ? 'filter-on' : ''}}" hover-class="btn-hover" data-f="dismissed" bindtap="switchFilter">已忽略</view>
+    <view class="filter {{filter === 'done' ? 'filter-on' : ''}}" hover-class="btn-hover" data-f="done" bindtap="switchFilter">已完成</view>
+  </view>
+
+  <view wx:if="{{tasks.length === 0}}" class="empty">这里空空如也</view>
+
+  <view wx:for="{{tasks}}" wx:key="id" class="card task anim-card" style="animation-delay: {{index * 50}}ms">
+    <view class="task-title {{item.is_overdue ? 'task-overdue' : ''}}">{{item.title}}</view>
+    <view class="task-meta">
+      <text wx:if="{{item.due_date}}">截止：{{item.due_date}}</text>
+      <text wx:elif="{{item.detail}}">备注：{{item.detail}}</text>
+    </view>
+    <view class="task-actions">
+      <button wx:if="{{item.status === 'active'}}" class="btn btn-success task-btn" hover-class="btn-hover" data-id="{{item.id}}" data-action="done" bindtap="doAction">完成</button>
+      <button wx:if="{{item.status === 'active'}}" class="btn btn-muted task-btn" hover-class="btn-hover" data-id="{{item.id}}" data-action="dismiss" bindtap="doAction">忽略</button>
+      <button wx:if="{{item.status === 'dismissed'}}" class="btn btn-plain task-btn" hover-class="btn-hover" data-id="{{item.id}}" data-action="reactivate" bindtap="doAction">恢复</button>
+    </view>
+  </view>
+
+</view>

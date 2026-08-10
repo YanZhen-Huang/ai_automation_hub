@@ -1,0 +1,108 @@
+.head-title {
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.head {
+  background: linear-gradient(135deg, #ffffff, #eef1ff);
+}
+
+.item:active {
+  transform: scale(0.99);
+}
+
+.head-meta {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #888;
+}
+
+.attend-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.attend-title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.attend-btn {
+  font-size: 26rpx;
+  padding: 10rpx 24rpx;
+}
+
+.attend-empty {
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  color: #aaa;
+}
+
+.attend-list {
+  margin-top: 16rpx;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.attend-chip {
+  background: #eef1ff;
+  color: #4a6cf7;
+  font-size: 24rpx;
+  padding: 6rpx 20rpx;
+  border-radius: 24rpx;
+}
+
+.item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.item-name {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.badge {
+  font-size: 22rpx;
+  padding: 4rpx 16rpx;
+  border-radius: 20rpx;
+}
+
+.badge-done {
+  background: #e8f8f0;
+  color: #2ecc71;
+}
+
+.badge-running {
+  background: #fff7e6;
+  color: #f39c12;
+}
+
+.badge-waiting {
+  background: #eef1ff;
+  color: #4a6cf7;
+}
+
+.badge-pending {
+  background: #f0f0f0;
+  color: #888;
+}
+
+.item-detail {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #888;
+}
+
+.item-result {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #2ecc71;
+}
+
+.item-btn {
+  margin-top: 16rpx;
+}

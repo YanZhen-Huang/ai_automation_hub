@@ -1,0 +1,46 @@
+<view class="page">
+
+  <view wx:if="{{meeting}}" class="card head">
+    <view class="head-title">{{meeting.title}}</view>
+    <view class="head-meta">时间：{{meeting.start_time || '未定'}}</view>
+    <view class="head-meta" wx:if="{{meeting.room}}">会议室：{{meeting.room}}</view>
+    <view class="head-meta" wx:if="{{meeting.attendees}}">与会：{{meeting.attendees}}</view>
+  </view>
+
+  <view class="card attend anim-card">
+    <view class="attend-top">
+      <text class="attend-title">签到（{{attendance.length}} 人）</text>
+      <button class="btn btn-plain attend-btn" hover-class="btn-hover" bindtap="scanCheckIn">扫码签到</button>
+    </view>
+    <view wx:if="{{attendance.length === 0}}" class="attend-empty">暂无签到</view>
+    <view class="attend-list">
+      <text wx:for="{{attendance}}" wx:key="id" class="attend-chip anim-pop" style="animation-delay: {{index * 50}}ms">{{item.name}}</text>
+    </view>
+  </view>
+
+  <view class="section-title anim-fade">一阶段（并行）</view>
+  <view wx:for="{{phase1}}" wx:key="id" class="card item anim-card" style="animation-delay: {{index * 60}}ms">
+    <view class="item-top">
+      <text class="item-name">{{item.name}}</text>
+      <text class="badge badge-{{item.status}}">{{item.status === 'done' ? '已完成' : item.status === 'running' ? '执行中' : item.status === 'waiting' ? '待确认' : '待执行'}}</text>
+    </view>
+    <view class="item-detail" wx:if="{{item.detail}}">{{item.detail}}</view>
+    <view class="item-result" wx:if="{{item.result}}">结果：{{item.result}}</view>
+    <button wx:if="{{item.status === 'waiting'}}" class="btn btn-success item-btn" hover-class="btn-hover" data-meeting-id="{{meeting.id}}" data-item-id="{{item.id}}" bindtap="confirmItem">确认完成</button>
+  </view>
+  <view wx:if="{{phase1.length === 0}}" class="empty">暂无动作项</view>
+  <button class="btn btn-plain anim-fade" wx:if="{{meeting && meeting.status === 'preparing'}}" hover-class="btn-hover" bindtap="runPhase1">重新运行一阶段</button>
+
+  <view class="section-title anim-fade">二阶段（串行）</view>
+  <view wx:for="{{phase2}}" wx:key="id" class="card item anim-card" style="animation-delay: {{index * 60}}ms">
+    <view class="item-top">
+      <text class="item-name">{{item.name}}</text>
+      <text class="badge badge-{{item.status}}">{{item.status === 'done' ? '已完成' : item.status === 'running' ? '执行中' : item.status === 'waiting' ? '待确认' : '待执行'}}</text>
+    </view>
+    <view class="item-detail" wx:if="{{item.detail}}">{{item.detail}}</view>
+    <view class="item-result" wx:if="{{item.result}}">结果：{{item.result}}</view>
+    <button wx:if="{{item.status === 'waiting'}}" class="btn btn-success item-btn" hover-class="btn-hover" data-meeting-id="{{meeting.id}}" data-item-id="{{item.id}}" bindtap="confirmItem">确认完成</button>
+  </view>
+  <view wx:if="{{phase2.length === 0}}" class="empty">暂无动作项</view>
+
+</view>

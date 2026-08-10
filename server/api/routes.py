@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
 from automation import actions, phrases, workflows
@@ -9,7 +9,59 @@ from core import settings as settings_center
 from core.config import CONFIG
 from storage import db
 
-router = APIRouter(prefix="/api")
+
+def verify_token(x_api_token: str = Header(default="")):
+    """微信小程序访问口令校验；配置为空时放行（局域网调试）。"""
+    token = (CONFIG.get("mini", {}) or {}).get("token", "") or ""
+    if token and x_api_token != token:
+        raise HTTPException(401, "Token 无效，请在小程序「我的」页检查口令")
+
+
+public_router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(verify_token)])
+
+
+@public_router.get("/health")
+def health():
+    return {"ok": True, "app": CONFIG.get("app", {}).get("name", ""),
+            "mini_token_set": bool((CONFIG.get("mini", {}) or {}).get("token"))}
+
+
+def _lan_ip():
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except Exception:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
+
+@router.get("/mini/qr")
+def mini_qr(text: str | None = None):
+    """生成二维码：默认指向电脑端 Web 地址，可自定义内容。返回 base64 PNG。"""
+    import base64
+    import io
+
+    import qrcode
+
+    if text:
+        url = text
+    else:
+        port = CONFIG.get("server", {}).get("port", 8780)
+        url = f"http://{_lan_ip()}:{port}"
+    if len(url) > 400:
+        raise HTTPException(400, "二维码内容过长")
+    try:
+        img = qrcode.make(url)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode()
+    except Exception:
+        raise HTTPException(400, "二维码生成失败")
+    return {"url": url, "qr_base64": b64}
 
 
 class MeetingIn(BaseModel):
@@ -320,3 +372,59 @@ def task_dismiss(task_id: int):
 def task_reactivate(task_id: int):
     db.update_task(task_id, status=db.TASK_ACTIVE)
     return {"ok": True}
+
+
+class AttendanceIn(BaseModel):
+    name: str
+
+
+@router.get("/meetings/{meeting_id}/attendance")
+def list_attendance(meeting_id: int):
+    return db.list_attendance(meeting_id)
+
+
+@router.post("/meetings/{meeting_id}/attendance")
+def add_attendance(meeting_id: int, payload: AttendanceIn):
+    if not payload.name.strip():
+        raise HTTPException(400, "签到内容不能为空")
+    aid, is_new = db.add_attendance(meeting_id, payload.name.strip())
+    return {"id": aid, "is_new": is_new,
+            "attendance": db.list_attendance(meeting_id)}
+
+
+@router.get("/mini/overview")
+def mini_overview():
+    """小程序首页聚合：最近会议(含进度)、进行中待办(含逾期标记)、最近信息。"""
+    from datetime import datetime
+
+    meetings = db.list_meetings(limit=5)
+    out_meetings = []
+    for m in meetings:
+        items = db.list_prep_items(m["id"])
+        done = sum(1 for i in items if i["status"] == "done")
+        out_meetings.append({
+            **m,
+            "prep_done": done,
+            "prep_total": len(items),
+        })
+
+    tasks = db.list_tasks(status=db.TASK_ACTIVE, limit=50)
+    today = datetime.now().date()
+    for t in tasks:
+        t["is_overdue"] = False
+        due = (t.get("due_date") or "").strip()
+        if due:
+            for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+                try:
+                    t["is_overdue"] = datetime.strptime(due, fmt).date() < today
+                    break
+                except ValueError:
+                    continue
+
+    info = db.list_info_items(limit=5)
+    return {
+        "meetings": out_meetings,
+        "active_tasks": tasks,
+        "active_task_count": len(tasks),
+        "recent_info": info,
+    }

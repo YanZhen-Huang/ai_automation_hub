@@ -1,0 +1,30 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/meeting/meeting",
+    "pages/tasks/tasks",
+    "pages/info/info",
+    "pages/settings/settings"
+  ],
+  "window": {
+    "navigationBarTitleText": "会议管家",
+    "navigationBarBackgroundColor": "#4a6cf7",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f5f6fa",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#4a6cf7",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "首页" },
+      { "pagePath": "pages/tasks/tasks", "text": "任务" },
+      { "pagePath": "pages/info/info", "text": "信息" },
+      { "pagePath": "pages/settings/settings", "text": "我的" }
+    ]
+  },
+  "sitemapLocation": "sitemap.json",
+  "lazyCodeLoading": "requiredComponents"
+}

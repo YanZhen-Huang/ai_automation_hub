@@ -19,3 +19,11 @@ dist/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# 鸿蒙 DevEco 工程（本地配置不提交）
+phone_app/.idea/
+phone_app/local.properties
+phone_app/build/
+
+# 微信开发者工具
+mini_app/project.private.config.json

@@ -1,0 +1,36 @@
+<view class="page">
+
+  <view class="card anim-card">
+    <view class="field-label">服务器地址</view>
+    <input class="field" placeholder="http://电脑局域网IP:8780" value="{{baseUrl}}" bindinput="onBaseUrl" />
+    <view class="field-tip">电脑端局域网 IP（如 http://192.168.1.100:8780），需和电脑同一 WiFi</view>
+
+    <view class="field-label">访问口令</view>
+    <input class="field" password placeholder="电脑端设置里的「小程序 Token」" value="{{token}}" bindinput="onToken" />
+    <view class="field-tip">对应电脑端设置页的「小程序 Token」，留空时服务端不校验</view>
+
+    <view class="field-actions">
+      <button class="btn field-btn" hover-class="btn-hover" bindtap="save">保存</button>
+      <button class="btn btn-plain field-btn" hover-class="btn-hover" disabled="{{testing}}" bindtap="test">{{testing ? '测试中…' : '测试连接'}}</button>
+    </view>
+    <view wx:if="{{testResult}}" class="test-result anim-fade">{{testResult}}</view>
+  </view>
+
+  <view class="card anim-card">
+    <view class="about-title">电脑端二维码</view>
+    <view class="about-line">用手机扫一下直达电脑端 Web 界面（同一 WiFi 下），可打印贴桌</view>
+    <button class="btn qr-btn" hover-class="btn-hover" disabled="{{qrLoading}}" bindtap="generateQr">{{qrLoading ? '生成中…' : '生成二维码'}}</button>
+    <view wx:if="{{qrUrl}}" class="qr-block anim-pop">
+      <view class="qr-url" bindtap="copyUrl">{{qrUrl}}</view>
+      <image class="qr-img" src="{{qrImage}}" mode="aspectFit" />
+      <button class="btn btn-plain qr-btn" hover-class="btn-hover" bindtap="copyUrl">复制地址</button>
+    </view>
+  </view>
+
+  <view class="card anim-card">
+    <view class="about-title">关于</view>
+    <view class="about-line">会议管家 · ai_automation_hub 手机端</view>
+    <view class="about-line">开发版：手机与电脑同一局域网，微信开发者工具勾选「不校验合法域名」</view>
+  </view>
+
+</view>

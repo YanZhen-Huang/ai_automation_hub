@@ -1,0 +1,22 @@
+<view class="page">
+
+  <view class="card banner anim-fade">
+    <view class="banner-title">会议管家</view>
+    <view class="banner-sub">进行中待办 {{activeTaskCount}} 项</view>
+  </view>
+
+  <view class="section-title anim-fade">最近会议</view>
+  <view wx:if="{{loaded && meetings.length === 0}}" class="empty anim-fade">暂无会议，到电脑端新建一个吧</view>
+  <view wx:for="{{meetings}}" wx:key="id" class="card meeting anim-card" style="animation-delay: {{index * 70}}ms" bindtap="goMeeting" data-id="{{item.id}}">
+    <view class="meeting-title">{{item.title}}</view>
+    <view class="meeting-meta">
+      <text>{{item.start_time || '时间未定'}}</text>
+      <text class="status-{{item.status}}">{{item.status === 'prepared' ? '已就绪' : item.status === 'cancelled' ? '已取消' : '准备中'}}</text>
+    </view>
+    <view class="progress-wrap">
+      <view class="progress-bar" style="width: {{item.prep_total ? (item.prep_done / item.prep_total * 100) : 0}}%"></view>
+    </view>
+    <view class="progress-text">{{item.prep_done}} / {{item.prep_total}} 项已完成</view>
+  </view>
+
+</view>
